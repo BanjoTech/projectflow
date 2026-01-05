@@ -38,7 +38,7 @@ app.use('/api/auth/signup', authLimiter);
 // CORS configuration
 const allowedOrigins = [
   'http://localhost:5173',
-  'https://projectflow.netlify.app', // Your production domain
+  'https://projectflowww.netlify.app', // Your production domain
 ];
 
 app.use(
