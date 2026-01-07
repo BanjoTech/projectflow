@@ -110,8 +110,8 @@ const projectSchema = new mongoose.Schema(
         'ecommerce',
         'mobile-app',
         'api',
-        'web3', // NEW
-        'animated', // NEW
+        'web3',
+        'animated',
         'custom',
       ],
     },
@@ -163,23 +163,47 @@ const projectSchema = new mongoose.Schema(
     // AI Chat History
     chatHistory: [chatMessageSchema],
 
-    // GitHub Integration
+    // GitHub Integration - UPDATED
     github: {
-      repoId: Number,
-      repoName: String,
-      repoFullName: String,
-      repoUrl: String,
-      defaultBranch: String,
       isConnected: {
         type: Boolean,
         default: false,
       },
+      repoId: Number,
+      repoOwner: String,
+      repoName: String,
+      repoFullName: String,
+      repoUrl: String,
+      branch: {
+        type: String,
+        default: 'main',
+      },
       lastSyncedAt: Date,
       analysis: {
-        techStack: mongoose.Schema.Types.Mixed,
-        structure: mongoose.Schema.Types.Mixed,
+        techStack: {
+          frontend: [String],
+          backend: [String],
+          database: [String],
+          styling: [String],
+          testing: [String],
+          other: [String],
+        },
+        structure: {
+          hasClient: Boolean,
+          hasServer: Boolean,
+          hasSrc: Boolean,
+          hasTests: Boolean,
+          hasDocker: Boolean,
+          hasCICD: Boolean,
+          hasReadme: Boolean,
+        },
+        files: {
+          total: Number,
+          byExtension: mongoose.Schema.Types.Mixed,
+        },
         detectedFeatures: [String],
         missingFeatures: [String],
+        suggestions: [String],
       },
     },
   },
