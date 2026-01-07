@@ -1,10 +1,10 @@
 // client/src/App.jsx
 
-import VerifyEmailPage from './pages/VerifyEmailPage';
 import { Routes, Route } from 'react-router-dom';
 import Navbar from './components/layout/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
 
+// Pages
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
@@ -12,17 +12,25 @@ import DashboardPage from './pages/DashboardPage';
 import NewProjectPage from './pages/NewProjectPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
 import JoinProjectPage from './pages/JoinProjectPage';
+import VerifyEmailPage from './pages/VerifyEmailPage';
+import GitHubCallbackPage from './pages/GitHubCallbackPage'; // <--- Added Import
 
 function App() {
   return (
     <div className='min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors'>
       <Navbar />
       <Routes>
+        {/* Public Routes */}
         <Route path='/' element={<LandingPage />} />
         <Route path='/login' element={<LoginPage />} />
         <Route path='/signup' element={<SignupPage />} />
         <Route path='/join/:code' element={<JoinProjectPage />} />
         <Route path='/verify-email/:token' element={<VerifyEmailPage />} />
+        
+        {/* GitHub Callback Route - This was missing! */}
+        <Route path='/auth/github/callback' element={<GitHubCallbackPage />} />
+
+        {/* Protected Routes */}
         <Route
           path='/dashboard'
           element={

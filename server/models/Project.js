@@ -2,7 +2,6 @@
 
 const mongoose = require('mongoose');
 
-// Updated subtask schema with description field
 const subTaskSchema = new mongoose.Schema({
   title: {
     type: String,
@@ -111,15 +110,10 @@ const projectSchema = new mongoose.Schema(
         'ecommerce',
         'mobile-app',
         'api',
-        'web3',
-        'animated',
+        'web3', // NEW
+        'animated', // NEW
         'custom',
       ],
-    },
-    // NEW: Template used (for reference)
-    template: {
-      type: String,
-      default: null,
     },
     phases: [phaseSchema],
     status: {
@@ -133,17 +127,12 @@ const projectSchema = new mongoose.Schema(
       min: 0,
       max: 100,
     },
-    // NEW: AI-generated metadata
+    // Metadata from AI generation
     metadata: {
       estimatedDuration: String,
       complexity: String,
-      suggestedTechStack: [String],
-      generatedByAI: {
-        type: Boolean,
-        default: false,
-      },
     },
-    // NEW: PRD storage
+    // PRD storage
     planningPRD: {
       type: String,
       default: null,
@@ -173,6 +162,26 @@ const projectSchema = new mongoose.Schema(
     },
     // AI Chat History
     chatHistory: [chatMessageSchema],
+
+    // GitHub Integration
+    github: {
+      repoId: Number,
+      repoName: String,
+      repoFullName: String,
+      repoUrl: String,
+      defaultBranch: String,
+      isConnected: {
+        type: Boolean,
+        default: false,
+      },
+      lastSyncedAt: Date,
+      analysis: {
+        techStack: mongoose.Schema.Types.Mixed,
+        structure: mongoose.Schema.Types.Mixed,
+        detectedFeatures: [String],
+        missingFeatures: [String],
+      },
+    },
   },
   {
     timestamps: true,
@@ -202,7 +211,6 @@ projectSchema.methods.calculateProgress = function () {
     this.progress = Math.round((completedTasks / totalTasks) * 100);
   }
 
-  // Update status
   if (this.progress === 100) {
     this.status = 'completed';
   } else if (this.progress > 0) {

@@ -24,6 +24,18 @@ const userSchema = new mongoose.Schema(
       minlength: [6, 'Password must be at least 6 characters'],
       select: false,
     },
+    // GitHub OAuth
+    github: {
+      id: String,
+      username: String,
+      accessToken: {
+        type: String,
+        select: false,
+      },
+      avatarUrl: String,
+      profileUrl: String,
+      connectedAt: Date,
+    },
     // Email verification
     isEmailVerified: {
       type: Boolean,
@@ -68,33 +80,23 @@ userSchema.methods.comparePassword = async function (enteredPassword) {
 
 // Generate email verification token
 userSchema.methods.generateEmailVerificationToken = function () {
-  // Generate random token
   const verificationToken = crypto.randomBytes(32).toString('hex');
-
-  // Hash and save to database
   this.emailVerificationToken = crypto
     .createHash('sha256')
     .update(verificationToken)
     .digest('hex');
-
-  // Token expires in 24 hours
   this.emailVerificationExpires = Date.now() + 24 * 60 * 60 * 1000;
-
-  // Return unhashed token to send via email
   return verificationToken;
 };
 
 // Generate password reset token
 userSchema.methods.generatePasswordResetToken = function () {
   const resetToken = crypto.randomBytes(32).toString('hex');
-
   this.passwordResetToken = crypto
     .createHash('sha256')
     .update(resetToken)
     .digest('hex');
-
-  this.passwordResetExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
-
+  this.passwordResetExpires = Date.now() + 10 * 60 * 1000;
   return resetToken;
 };
 

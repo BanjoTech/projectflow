@@ -3,9 +3,11 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { projectsAPI } from '../services/api';
+import { projectsAPI, githubAPI } from '../services/api'; // Added githubAPI
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
+import GitHubConnect from '../components/github/GitHubConnect'; // New Import
+import RepoSelector from '../components/github/RepoSelector'; // New Import
 import {
   HiOutlineGlobeAlt,
   HiOutlineSparkles,
@@ -101,10 +103,33 @@ function NewProjectPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState('');
 
+  // New GitHub States
+  const [isImporting, setIsImporting] = useState(false);
+  const [showRepoSelector, setShowRepoSelector] = useState(false);
+  const [githubConnected, setGithubConnected] = useState(false);
+
   const navigate = useNavigate();
 
   const selectedTypeData = projectTypes.find((t) => t.id === selectedType);
   const canProceedToStep2 = name.trim().length > 0;
+
+  // GitHub Import Handler
+  const handleImportSelect = async (repo) => {
+    setShowRepoSelector(false);
+    setIsCreating(true);
+    try {
+      const data = await githubAPI.importProject({
+        owner: repo.fullName.split('/')[0],
+        repo: repo.name,
+        projectName: repo.name,
+        description: repo.description,
+      });
+      navigate(`/projects/${data.project._id}`);
+    } catch (err) {
+      setError('Failed to import project');
+      setIsCreating(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -196,8 +221,8 @@ function NewProjectPage() {
       )}
 
       <form onSubmit={handleSubmit}>
-        {/* Step 1: Project Details */}
         <AnimatePresence mode='wait'>
+          {/* Step 1: Project Details / Import Choice */}
           {step === 1 && (
             <motion.div
               key='step1'
@@ -207,50 +232,101 @@ function NewProjectPage() {
               className='bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6'
             >
               <h2 className='text-lg font-semibold text-gray-900 dark:text-white mb-4'>
-                Project Details
+                How do you want to start?
               </h2>
 
-              <Input
-                label='Project Name'
-                type='text'
-                placeholder='e.g., E-commerce Dashboard, My Portfolio, SaaS App'
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-              />
-
-              <div className='mt-4'>
-                <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
-                  Description{' '}
-                  <span className='text-gray-400'>
-                    (recommended for better phases)
-                  </span>
-                </label>
-                <textarea
-                  placeholder={`Describe your project in detail for more tailored phases.
-
-Example: An e-commerce website for selling handmade jewelry. Features include product catalog with categories, shopping cart, user accounts, Stripe payments, order tracking, and an admin dashboard for inventory management. Target audience is women aged 25-45. Modern, minimalist design with light colors.`}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={6}
-                  className='w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none dark:bg-gray-700 dark:text-white dark:placeholder-gray-400'
-                />
-                <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
-                  💡 Include features, target users, design preferences, and
-                  tech stack for personalized phases
-                </p>
-              </div>
-
-              <div className='flex justify-end mt-6'>
-                <Button
+              <div className='grid grid-cols-2 gap-4 mb-6'>
+                <button
                   type='button'
-                  variant='primary'
-                  onClick={() => setStep(2)}
-                  disabled={!canProceedToStep2}
+                  onClick={() => setIsImporting(false)}
+                  className={`p-4 border-2 rounded-xl text-left transition-all ${
+                    !isImporting
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                      : 'border-gray-200 dark:border-gray-700'
+                  }`}
                 >
-                  Continue
-                </Button>
+                  <span className='text-2xl mb-2 block'>✨</span>
+                  <span className='font-semibold block dark:text-white'>
+                    New Project
+                  </span>
+                  <span className='text-xs text-gray-500 dark:text-gray-400'>
+                    Start from scratch with AI planning
+                  </span>
+                </button>
+
+                <button
+                  type='button'
+                  onClick={() => setIsImporting(true)}
+                  className={`p-4 border-2 rounded-xl text-left transition-all ${
+                    isImporting
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                      : 'border-gray-200 dark:border-gray-700'
+                  }`}
+                >
+                  <span className='text-2xl mb-2 block'>📦</span>
+                  <span className='font-semibold block dark:text-white'>
+                    Import Code
+                  </span>
+                  <span className='text-xs text-gray-500 dark:text-gray-400'>
+                    Scan existing GitHub repo
+                  </span>
+                </button>
               </div>
+
+              {isImporting ? (
+                <div className='space-y-4'>
+                  <GitHubConnect onConnect={setGithubConnected} />
+
+                  <div className='pt-4 flex justify-end'>
+                    <Button
+                      type='button'
+                      disabled={!githubConnected}
+                      onClick={() => setShowRepoSelector(true)}
+                      variant='primary'
+                    >
+                      Select Repository
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <Input
+                    label='Project Name'
+                    type='text'
+                    placeholder='e.g., E-commerce Dashboard, My Portfolio, SaaS App'
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
+
+                  <div className='mt-4'>
+                    <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
+                      Description{' '}
+                      <span className='text-gray-400'>
+                        (recommended for better phases)
+                      </span>
+                    </label>
+                    <textarea
+                      placeholder={`Describe your project in detail...`}
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      rows={6}
+                      className='w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none dark:bg-gray-700 dark:text-white dark:placeholder-gray-400'
+                    />
+                  </div>
+
+                  <div className='flex justify-end mt-6'>
+                    <Button
+                      type='button'
+                      variant='primary'
+                      onClick={() => setStep(2)}
+                      disabled={!canProceedToStep2}
+                    >
+                      Continue
+                    </Button>
+                  </div>
+                </>
+              )}
             </motion.div>
           )}
 
@@ -310,29 +386,6 @@ Example: An e-commerce website for selling handmade jewelry. Features include pr
                 </div>
               </div>
 
-              {/* Summary */}
-              {selectedType && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className='bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl p-4 border border-blue-100 dark:border-blue-800'
-                >
-                  <div className='flex items-start space-x-3'>
-                    <HiOutlineSparkles className='w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0' />
-                    <div>
-                      <p className='text-sm font-medium text-gray-900 dark:text-white'>
-                        Ready to create: {name}
-                      </p>
-                      <p className='text-sm text-gray-600 dark:text-gray-400 mt-1'>
-                        Type: {selectedTypeData?.name} • We'll create customized
-                        development phases covering design, development,
-                        testing, and deployment
-                      </p>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-
               {/* Actions */}
               <div className='flex items-center justify-between'>
                 <Button
@@ -355,6 +408,14 @@ Example: An e-commerce website for selling handmade jewelry. Features include pr
           )}
         </AnimatePresence>
       </form>
+
+      {/* Repo Selector Modal */}
+      {showRepoSelector && (
+        <RepoSelector
+          onSelect={handleImportSelect}
+          onClose={() => setShowRepoSelector(false)}
+        />
+      )}
     </main>
   );
 }

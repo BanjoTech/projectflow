@@ -17,6 +17,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import PhaseTracker from '../components/project/PhaseTracker';
 import CollaboratorPanel from '../components/project/CollaboratorPanel';
+import GitHubPanel from '../components/project/GitHubPanel'; // Added Import
 import AIChat from '../components/project/AICHAT';
 import PRDModal from '../components/project/PRDModal';
 import ProgressBar from '../components/ui/ProgressBar';
@@ -261,7 +262,6 @@ function ProjectDetailPage() {
           </div>
 
           <div className='flex items-center space-x-2'>
-            {/* Generate PRD Button - Always show */}
             <button
               onClick={() => setShowPRDModal(true)}
               className='inline-flex items-center space-x-1.5 px-3 py-2 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors'
@@ -300,22 +300,6 @@ function ProjectDetailPage() {
             size='lg'
             showLabel={false}
           />
-          <div className='flex items-center justify-between mt-2'>
-            <p className='text-sm text-gray-500 dark:text-gray-400'>
-              {project.phases.filter((p) => p.isComplete).length} of{' '}
-              {project.phases.length} phases completed
-            </p>
-            {project.progress === 100 && (
-              <motion.p
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                className='text-sm text-green-600 dark:text-green-400 flex items-center'
-              >
-                <HiOutlineSparkles className='w-4 h-4 mr-1' />
-                Project complete! Generate your PRD
-              </motion.p>
-            )}
-          </div>
         </div>
       </div>
 
@@ -331,6 +315,14 @@ function ProjectDetailPage() {
           </button>
         </div>
       )}
+
+      {/* GitHub Panel - Added Here */}
+      <div className='mb-6'>
+        <GitHubPanel
+          project={project}
+          onUpdate={(updatedProject) => setProject(updatedProject)}
+        />
+      </div>
 
       {/* Collaborators Panel */}
       <div className='mb-6'>
@@ -375,7 +367,6 @@ function ProjectDetailPage() {
               </h3>
               <p className='text-gray-600 dark:text-gray-400 mb-6'>
                 This will permanently delete "{project.name}" and all its data.
-                This action cannot be undone.
               </p>
               <div className='flex justify-end space-x-3'>
                 <Button

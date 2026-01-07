@@ -95,6 +95,7 @@ app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/projects', require('./routes/projectRoutes'));
 app.use('/api/ai', require('./routes/aiRoutes'));
 app.use('/api/notifications', require('./routes/notificationRoutes'));
+app.use('/api/github', require('./routes/githubRoutes'));
 
 app.get('/', (req, res) => {
   res.json({ message: 'ProjectFlow API is running' });

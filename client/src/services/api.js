@@ -207,4 +207,68 @@ export const notificationsAPI = {
   },
 };
 
+// Add to client/src/services/api.js
+
+export const githubAPI = {
+  getAuthUrl: async () => {
+    const response = await api.get('/github/auth-url');
+    return response.data;
+  },
+
+  handleCallback: async (code) => {
+    const response = await api.post('/github/callback', { code });
+    return response.data;
+  },
+
+  disconnect: async () => {
+    const response = await api.delete('/github/disconnect');
+    return response.data;
+  },
+
+  getStatus: async () => {
+    const response = await api.get('/github/status');
+    return response.data;
+  },
+
+  getRepos: async (page = 1) => {
+    const response = await api.get(`/github/repos?page=${page}`);
+    return response.data;
+  },
+
+  analyzeRepo: async (owner, repo) => {
+    const response = await api.post('/github/analyze', { owner, repo });
+    return response.data;
+  },
+
+  importProject: async (data) => {
+    const response = await api.post('/github/import', data);
+    return response.data;
+  },
+
+  connectProject: async (projectId, owner, repo) => {
+    const response = await api.post(`/github/connect/${projectId}`, {
+      owner,
+      repo,
+    });
+    return response.data;
+  },
+
+  createRepo: async (projectId, isPrivate) => {
+    const response = await api.post(`/github/create-repo/${projectId}`, {
+      isPrivate,
+    });
+    return response.data;
+  },
+
+  getCommits: async (projectId) => {
+    const response = await api.get(`/github/commits/${projectId}`);
+    return response.data;
+  },
+
+  syncProject: async (projectId) => {
+    const response = await api.post(`/github/sync/${projectId}`);
+    return response.data;
+  },
+};
+
 export default api;
