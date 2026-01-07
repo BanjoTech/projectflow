@@ -1,5 +1,6 @@
 // client/src/App.jsx
 
+import VerifyEmailPage from './pages/VerifyEmailPage';
 import { Routes, Route } from 'react-router-dom';
 import Navbar from './components/layout/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -21,7 +22,7 @@ function App() {
         <Route path='/login' element={<LoginPage />} />
         <Route path='/signup' element={<SignupPage />} />
         <Route path='/join/:code' element={<JoinProjectPage />} />
-
+        <Route path='/verify-email/:token' element={<VerifyEmailPage />} />
         <Route
           path='/dashboard'
           element={

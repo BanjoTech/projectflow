@@ -261,19 +261,17 @@ function ProjectDetailPage() {
           </div>
 
           <div className='flex items-center space-x-2'>
-            {/* Generate PRD Button - Shows when progress >= 50% */}
-            {project.progress >= 50 && (
-              <button
-                onClick={() => setShowPRDModal(true)}
-                className='inline-flex items-center space-x-1.5 px-3 py-2 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors'
-                title='Generate PRD'
-              >
-                <HiOutlineDocumentText className='w-5 h-5' />
-                <span className='hidden sm:inline text-sm font-medium'>
-                  Generate PRD
-                </span>
-              </button>
-            )}
+            {/* Generate PRD Button - Always show */}
+            <button
+              onClick={() => setShowPRDModal(true)}
+              className='inline-flex items-center space-x-1.5 px-3 py-2 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors'
+              title='Generate PRD / Documentation'
+            >
+              <HiOutlineDocumentText className='w-5 h-5' />
+              <span className='hidden sm:inline text-sm font-medium'>
+                {project.progress < 50 ? 'Planning PRD' : 'Documents'}
+              </span>
+            </button>
 
             {isOwner() && (
               <button

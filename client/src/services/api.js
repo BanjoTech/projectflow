@@ -47,6 +47,28 @@ export const authAPI = {
     const response = await api.get('/auth/me');
     return response.data;
   },
+
+  verifyEmail: async (token) => {
+    const response = await api.post(`/auth/verify-email/${token}`);
+    return response.data;
+  },
+
+  resendVerification: async () => {
+    const response = await api.post('/auth/resend-verification');
+    return response.data;
+  },
+
+  forgotPassword: async (email) => {
+    const response = await api.post('/auth/forgot-password', { email });
+    return response.data;
+  },
+
+  resetPassword: async (token, password) => {
+    const response = await api.post(`/auth/reset-password/${token}`, {
+      password,
+    });
+    return response.data;
+  },
 };
 
 // PROJECTS API
@@ -60,6 +82,7 @@ export const projectsAPI = {
     return response.data;
   },
   create: async (projectData) => {
+    // projectData can now include: { name, description, type, useAI, template }
     const response = await api.post('/projects', projectData);
     return response.data;
   },
@@ -117,6 +140,7 @@ export const aiAPI = {
     });
     return response.data;
   },
+
   chat: async (projectId, message, chatHistory, currentPhaseId = null) => {
     const response = await api.post('/ai/chat', {
       projectId,
@@ -126,14 +150,35 @@ export const aiAPI = {
     });
     return response.data;
   },
-  // Alias for PRD generation (uses chat internally)
-  generatePRD: async (prompt) => {
-    const response = await api.post('/ai/chat', {
-      projectId: null,
-      message: prompt,
-      chatHistory: [],
-      currentPhaseId: null,
+
+  // NEW: Generate dynamic phases
+  generatePhases: async (name, description, type, template = null) => {
+    const response = await api.post('/ai/generate-phases', {
+      name,
+      description,
+      type,
+      template,
     });
+    return response.data;
+  },
+
+  // NEW: Generate Planning PRD
+  generatePlanningPRD: async (projectId) => {
+    const response = await api.post(`/ai/generate-planning-prd/${projectId}`);
+    return response.data;
+  },
+
+  // NEW: Generate Documentation PRD
+  generateDocumentationPRD: async (projectId) => {
+    const response = await api.post(
+      `/ai/generate-documentation-prd/${projectId}`
+    );
+    return response.data;
+  },
+
+  // NEW: Get saved PRDs
+  getProjectPRDs: async (projectId) => {
+    const response = await api.get(`/ai/prds/${projectId}`);
     return response.data;
   },
 };

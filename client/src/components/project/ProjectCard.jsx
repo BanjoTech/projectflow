@@ -4,12 +4,12 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import ProgressBar from '../ui/ProgressBar';
 import { projectsAPI } from '../../services/api';
+import { HiOutlineUserGroup, HiOutlineSparkles } from 'react-icons/hi';
 
-function ProjectCard({ project, onDelete }) {
+function ProjectCard({ project, onDelete, isShared = false }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Format the date to be readable
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -20,13 +20,9 @@ function ProjectCard({ project, onDelete }) {
     if (diffDays === 1) return 'Yesterday';
     if (diffDays < 7) return `${diffDays} days ago`;
 
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-    });
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  // Get emoji for project type
   const getTypeEmoji = (type) => {
     const emojis = {
       'landing-page': '🎯',
@@ -37,12 +33,13 @@ function ProjectCard({ project, onDelete }) {
       ecommerce: '🛒',
       'mobile-app': '📱',
       api: '🔌',
+      web3: '🔗',
+      animated: '✨',
       custom: '📦',
     };
     return emojis[type] || '📋';
   };
 
-  // Format project type for display
   const formatType = (type) => {
     const types = {
       'landing-page': 'Landing Page',
@@ -53,12 +50,13 @@ function ProjectCard({ project, onDelete }) {
       ecommerce: 'E-Commerce',
       'mobile-app': 'Mobile App',
       api: 'API/Backend',
+      web3: 'Web3',
+      animated: 'Animated',
       custom: 'Custom',
     };
     return types[type] || type;
   };
 
-  // Handle delete
   const handleDelete = async (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -78,14 +76,12 @@ function ProjectCard({ project, onDelete }) {
     }
   };
 
-  // Handle delete button click
   const handleDeleteClick = (e) => {
     e.preventDefault();
     e.stopPropagation();
     setShowDeleteConfirm(true);
   };
 
-  // Handle cancel delete
   const handleCancelDelete = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -93,17 +89,31 @@ function ProjectCard({ project, onDelete }) {
   };
 
   return (
-    <div className='relative'>
+    <div className='relative group'>
       <Link
         to={`/projects/${project._id}`}
-        className='block bg-white dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-100 dark:border-gray-700 overflow-hidden'
+        className={`block bg-white dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-md transition-all border overflow-hidden ${
+          isShared
+            ? 'border-blue-200 dark:border-blue-800'
+            : 'border-gray-100 dark:border-gray-700'
+        }`}
       >
+        {/* Shared Indicator Banner */}
+        {isShared && (
+          <div className='bg-blue-50 dark:bg-blue-900/30 px-4 py-1.5 flex items-center justify-between'>
+            <span className='text-xs text-blue-600 dark:text-blue-400 flex items-center'>
+              <HiOutlineUserGroup className='w-3.5 h-3.5 mr-1' />
+              Shared by {project.user?.name || 'Team Member'}
+            </span>
+          </div>
+        )}
+
         {/* Card Header */}
         <div className='p-6'>
           <div className='flex items-start justify-between mb-3'>
             <span className='text-3xl'>{getTypeEmoji(project.type)}</span>
             <div className='flex items-center space-x-2'>
-              {project.status === 'completed' && (
+              {project.metadata?.generatedByAI && (
                 <span className='bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 text-xs font-medium px-2 py-1 rounded-full'>
                   Completed
                 </span>
@@ -145,27 +155,28 @@ function ProjectCard({ project, onDelete }) {
         </div>
       </Link>
 
-      {/* Delete Button - Top Right Corner */}
-      <button
-        onClick={handleDeleteClick}
-        className='absolute top-3 right-3 p-2 bg-white dark:bg-gray-800 rounded-full shadow-md text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-all opacity-0 hover:opacity-100 focus:opacity-100 group-hover:opacity-100 z-10'
-        style={{ opacity: 1 }}
-        title='Delete project'
-      >
-        <svg
-          className='w-4 h-4'
-          fill='none'
-          stroke='currentColor'
-          viewBox='0 0 24 24'
+      {/* Delete Button - Only show for owned projects */}
+      {!isShared && (
+        <button
+          onClick={handleDeleteClick}
+          className='absolute top-3 right-3 p-2 bg-white dark:bg-gray-800 rounded-full shadow-md text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-all opacity-0 group-hover:opacity-100 z-10'
+          title='Delete project'
         >
-          <path
-            strokeLinecap='round'
-            strokeLinejoin='round'
-            strokeWidth={2}
-            d='M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16'
-          />
-        </svg>
-      </button>
+          <svg
+            className='w-4 h-4'
+            fill='none'
+            stroke='currentColor'
+            viewBox='0 0 24 24'
+          >
+            <path
+              strokeLinecap='round'
+              strokeLinejoin='round'
+              strokeWidth={2}
+              d='M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16'
+            />
+          </svg>
+        </button>
+      )}
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
