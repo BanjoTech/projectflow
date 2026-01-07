@@ -64,15 +64,40 @@ const getProject = async (req, res) => {
   }
 };
 
-// @desc    Create new project (NO AI - uses templates)
+// @desc    Create new project (AI prompted template)
 // @route   POST /api/projects
 // @access  Private
 const createProject = async (req, res) => {
   try {
     const { name, description, type } = req.body;
 
-    // Use developer-focused template phases
-    const phases = getPhaseTemplate(type);
+    if (!name || !type) {
+      return res.status(400).json({ message: 'Name and type are required' });
+    }
+
+    // Always use AI to generate phases
+    const { generateDynamicPhases } = require('../services/aiService');
+
+    let phases;
+    let metadata = {};
+
+    try {
+      const result = await generateDynamicPhases(name, description, type);
+      phases = result.phases;
+      metadata = result.metadata;
+    } catch (aiError) {
+      console.error('AI generation error, using fallback:', aiError);
+      // The generateDynamicPhases function already has a fallback
+      const result = require('../services/aiService').getFallbackPhases?.(type);
+      if (result) {
+        phases = result.phases;
+        metadata = result.metadata;
+      } else {
+        // Ultimate fallback
+        phases = require('../utils/phaseTemplates').getPhaseTemplate(type);
+        metadata = { complexity: 'medium', estimatedDuration: '4-8 weeks' };
+      }
+    }
 
     const project = await Project.create({
       user: req.user._id,
@@ -80,6 +105,7 @@ const createProject = async (req, res) => {
       description,
       type,
       phases,
+      metadata,
     });
 
     project.generateInviteCode();
@@ -92,7 +118,6 @@ const createProject = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
 // @desc    Update project
 // @route   PUT /api/projects/:id
 // @access  Private
@@ -221,18 +246,31 @@ const updatePhase = async (req, res) => {
     }
 
     if (subTasks) {
-      // Check if any task was just completed
       const oldSubTasks = project.phases[phaseIndex].subTasks;
-      subTasks.forEach((newTask, idx) => {
-        if (
-          oldSubTasks[idx] &&
-          !oldSubTasks[idx].isComplete &&
-          newTask.isComplete
-        ) {
+
+      // Update subtasks with descriptions preserved
+      project.phases[phaseIndex].subTasks = subTasks.map((newTask, idx) => {
+        const oldTask = oldSubTasks[idx];
+
+        // Check if task was just completed
+        if (oldTask && !oldTask.isComplete && newTask.isComplete) {
           taskJustCompleted = true;
+          return {
+            ...newTask,
+            completedAt: new Date(),
+          };
         }
+
+        // If task was uncompleted, remove completedAt
+        if (oldTask && oldTask.isComplete && !newTask.isComplete) {
+          return {
+            ...newTask,
+            completedAt: null,
+          };
+        }
+
+        return newTask;
       });
-      project.phases[phaseIndex].subTasks = subTasks;
     }
 
     project.calculateProgress();
@@ -240,14 +278,14 @@ const updatePhase = async (req, res) => {
     await project.populate('user', 'name email');
     await project.populate('collaborators.user', 'name email');
 
-    // Get io and send real-time update
+    // Real-time update
     const io = req.app.get('io');
     io.to(`project:${project._id}`).emit('phase-updated', {
       projectId: project._id,
       project: project,
     });
 
-    // Send notifications
+    // Notifications
     if (phaseJustCompleted) {
       await notifyProjectMembers(io, {
         project,
@@ -275,7 +313,6 @@ const updatePhase = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
 // @desc    Add collaborator to project
 // @route   POST /api/projects/:id/collaborators
 // @access  Private (owner only)

@@ -2,6 +2,7 @@
 
 const mongoose = require('mongoose');
 
+// Updated subtask schema with description field
 const subTaskSchema = new mongoose.Schema({
   title: {
     type: String,
@@ -10,6 +11,14 @@ const subTaskSchema = new mongoose.Schema({
   isComplete: {
     type: Boolean,
     default: false,
+  },
+  description: {
+    type: String,
+    default: '',
+  },
+  completedAt: {
+    type: Date,
+    default: null,
   },
 });
 
@@ -41,7 +50,6 @@ const phaseSchema = new mongoose.Schema({
   },
 });
 
-// Collaborator schema
 const collaboratorSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
@@ -59,7 +67,6 @@ const collaboratorSchema = new mongoose.Schema({
   },
 });
 
-// Chat message schema for AI assistant
 const chatMessageSchema = new mongoose.Schema({
   role: {
     type: String,
@@ -104,8 +111,15 @@ const projectSchema = new mongoose.Schema(
         'ecommerce',
         'mobile-app',
         'api',
+        'web3',
+        'animated',
         'custom',
       ],
+    },
+    // NEW: Template used (for reference)
+    template: {
+      type: String,
+      default: null,
     },
     phases: [phaseSchema],
     status: {
@@ -118,6 +132,33 @@ const projectSchema = new mongoose.Schema(
       default: 0,
       min: 0,
       max: 100,
+    },
+    // NEW: AI-generated metadata
+    metadata: {
+      estimatedDuration: String,
+      complexity: String,
+      suggestedTechStack: [String],
+      generatedByAI: {
+        type: Boolean,
+        default: false,
+      },
+    },
+    // NEW: PRD storage
+    planningPRD: {
+      type: String,
+      default: null,
+    },
+    planningPRDGeneratedAt: {
+      type: Date,
+      default: null,
+    },
+    documentationPRD: {
+      type: String,
+      default: null,
+    },
+    documentationPRDGeneratedAt: {
+      type: Date,
+      default: null,
     },
     // Collaboration
     collaborators: [collaboratorSchema],
@@ -145,20 +186,26 @@ projectSchema.methods.generateInviteCode = function () {
   return code;
 };
 
-// Calculate progress
+// Calculate progress based on completed tasks
 projectSchema.methods.calculateProgress = function () {
-  if (this.phases.length === 0) return 0;
+  let totalTasks = 0;
+  let completedTasks = 0;
 
-  const completedPhases = this.phases.filter(
-    (phase) => phase.isComplete
-  ).length;
-  const totalPhases = this.phases.length;
+  this.phases.forEach((phase) => {
+    totalTasks += phase.subTasks.length;
+    completedTasks += phase.subTasks.filter((t) => t.isComplete).length;
+  });
 
-  this.progress = Math.round((completedPhases / totalPhases) * 100);
+  if (totalTasks === 0) {
+    this.progress = 0;
+  } else {
+    this.progress = Math.round((completedTasks / totalTasks) * 100);
+  }
 
+  // Update status
   if (this.progress === 100) {
     this.status = 'completed';
-  } else {
+  } else if (this.progress > 0) {
     this.status = 'active';
   }
 
@@ -168,30 +215,20 @@ projectSchema.methods.calculateProgress = function () {
 // Check if user can access project
 projectSchema.methods.canAccess = function (userId) {
   const userIdStr = userId.toString();
-
-  // Owner can always access
   if (this.user.toString() === userIdStr) return true;
-
-  // Check collaborators
   const collaborator = this.collaborators.find(
     (c) => c.user.toString() === userIdStr
   );
-
   return !!collaborator;
 };
 
 // Check if user can edit project
 projectSchema.methods.canEdit = function (userId) {
   const userIdStr = userId.toString();
-
-  // Owner can always edit
   if (this.user.toString() === userIdStr) return true;
-
-  // Check collaborators with editor role
   const collaborator = this.collaborators.find(
     (c) => c.user.toString() === userIdStr && c.role !== 'viewer'
   );
-
   return !!collaborator;
 };
 

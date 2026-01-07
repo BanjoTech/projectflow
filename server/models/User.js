@@ -1,8 +1,8 @@
 // server/models/User.js
-// ═══════════════════════════════════════════════════════════════
 
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
 const userSchema = new mongoose.Schema(
   {
@@ -24,55 +24,80 @@ const userSchema = new mongoose.Schema(
       minlength: [6, 'Password must be at least 6 characters'],
       select: false,
     },
+    // Email verification
+    isEmailVerified: {
+      type: Boolean,
+      default: false,
+    },
+    emailVerificationToken: {
+      type: String,
+      select: false,
+    },
+    emailVerificationExpires: {
+      type: Date,
+      select: false,
+    },
+    // Password reset
+    passwordResetToken: {
+      type: String,
+      select: false,
+    },
+    passwordResetExpires: {
+      type: Date,
+      select: false,
+    },
   },
   {
     timestamps: true,
   }
 );
 
-// MIDDLEWARE: Hash password before saving
-// FIX: With async functions, we don't use next() - just return
+// Hash password before saving
 userSchema.pre('save', async function () {
-  // Only hash if password was modified (or is new)
   if (!this.isModified('password')) {
-    return; // Just return, no next()
+    return;
   }
-
-  // Generate salt
   const salt = await bcrypt.genSalt(10);
-
-  // Hash the password
   this.password = await bcrypt.hash(this.password, salt);
-
-  // No next() needed - async function returns a Promise
-  // Mongoose waits for the Promise to resolve
 });
 
-// METHOD: Compare entered password with hashed password
+// Compare password
 userSchema.methods.comparePassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
+};
+
+// Generate email verification token
+userSchema.methods.generateEmailVerificationToken = function () {
+  // Generate random token
+  const verificationToken = crypto.randomBytes(32).toString('hex');
+
+  // Hash and save to database
+  this.emailVerificationToken = crypto
+    .createHash('sha256')
+    .update(verificationToken)
+    .digest('hex');
+
+  // Token expires in 24 hours
+  this.emailVerificationExpires = Date.now() + 24 * 60 * 60 * 1000;
+
+  // Return unhashed token to send via email
+  return verificationToken;
+};
+
+// Generate password reset token
+userSchema.methods.generatePasswordResetToken = function () {
+  const resetToken = crypto.randomBytes(32).toString('hex');
+
+  this.passwordResetToken = crypto
+    .createHash('sha256')
+    .update(resetToken)
+    .digest('hex');
+
+  this.passwordResetExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+  return resetToken;
 };
 
 const User = mongoose.model('User', userSchema);
 
 module.exports = User;
-
-/*
-EXPLANATION OF THE FIX:
-
-OLD WAY (with next):
-  userSchema.pre('save', async function(next) {
-    // do stuff
-    next();  // This can cause "next is not a function" in newer Mongoose
-  });
-
-NEW WAY (without next):
-  userSchema.pre('save', async function() {
-    // do stuff
-    return;  // Just return - Mongoose handles the rest
-  });
-
-When using async/await in Mongoose middleware, the function returns
-a Promise. Mongoose automatically waits for that Promise to resolve
-before continuing. We don't need next() at all.
-*/
