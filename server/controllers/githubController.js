@@ -14,6 +14,7 @@ const {
   createOrUpdateFile,
 } = require('../services/githubService');
 const { generateDynamicPhases } = require('../services/aiService');
+const { Octokit } = require('@octokit/rest');
 
 // @desc    Get GitHub OAuth URL
 // @route   GET /api/github/auth-url
