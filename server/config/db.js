@@ -1,29 +1,21 @@
 // server/config/db.js
-// ═══════════════════════════════════════════════════════════════
-// This file handles connecting to MongoDB
 
 const mongoose = require('mongoose');
 
 const connectDB = async () => {
   try {
-    // mongoose.connect() returns a promise
-    // We use async/await to wait for it
-    const conn = await mongoose.connect(process.env.MONGODB_URI);
-
+    const conn = await mongoose.connect(process.env.MONGODB_URI, {
+      // These options are no longer needed in Mongoose 6+
+      // but won't cause issues if present
+    });
     console.log(`MongoDB Connected: ${conn.connection.host}`);
+    return conn;
   } catch (error) {
-    console.error(`Error: ${error.message}`);
-    // Exit the process with failure code
-    process.exit(1);
+    console.error(`MongoDB Connection Error: ${error.message}`);
+    // Don't exit process, just log error
+    // process.exit(1);
+    throw error;
   }
 };
 
 module.exports = connectDB;
-
-/*
-EXPLANATION:
-- mongoose.connect() connects to our MongoDB database
-- process.env.MONGODB_URI gets the connection string from .env file
-- If connection fails, we log the error and stop the server
-- We export the function so we can use it in index.js
-*/
