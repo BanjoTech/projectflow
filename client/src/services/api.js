@@ -95,7 +95,6 @@ export const projectsAPI = {
     );
     return response.data;
   },
-
   // Phase management
   addPhase: async (projectId, data) => {
     const response = await api.post(`/projects/${projectId}/phases`, data);
@@ -113,7 +112,6 @@ export const projectsAPI = {
     });
     return response.data;
   },
-
   // Task management
   addTask: async (projectId, phaseId, data) => {
     const response = await api.post(
@@ -135,7 +133,6 @@ export const projectsAPI = {
     );
     return response.data;
   },
-
   // Collaborators
   addCollaborator: async (projectId, email, role) => {
     const response = await api.post(`/projects/${projectId}/collaborators`, {
@@ -154,8 +151,6 @@ export const projectsAPI = {
     const response = await api.post(`/projects/join/${code}`);
     return response.data;
   },
-
-  // Chat
   saveChatMessage: async (projectId, role, content) => {
     const response = await api.post(`/projects/${projectId}/chat`, {
       role,
@@ -236,7 +231,7 @@ export const notificationsAPI = {
   },
 };
 
-// GITHUB API
+// GITHUB API - COMPLETE
 export const githubAPI = {
   // OAuth
   getAuthUrl: async () => {
@@ -317,7 +312,7 @@ export const githubAPI = {
     return response.data;
   },
 
-  // Additional Data
+  // Git Data
   getBranches: async (projectId) => {
     const response = await api.get(`/github/branches/${projectId}`);
     return response.data;

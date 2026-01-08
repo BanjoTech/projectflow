@@ -24,55 +24,70 @@ import {
   HiOutlineDocument,
   HiOutlineDocumentText,
   HiOutlineCube,
+  HiOutlineTemplate,
   HiOutlineShieldCheck,
-  HiOutlineSwitchHorizontal,
+  HiOutlineUsers,
   HiOutlineX,
-  HiOutlineCloudUpload,
-  HiOutlineEye,
-  HiOutlineScale,
+  HiOutlineInformationCircle,
+  HiOutlineSwitchHorizontal,
+  HiOutlineClipboardCheck,
+  HiOutlineBan,
 } from 'react-icons/hi';
 import GitHubConnect from '../github/GitHubConnect';
 import RepoSelector from '../github/RepoSelector';
 
-// File Icon Component
-function FileIcon({ name, type }) {
-  if (type === 'tree') {
-    return <HiOutlineFolder className='w-4 h-4 text-yellow-500' />;
+const getGradeColor = (grade) => {
+  switch (grade) {
+    case 'A+':
+    case 'A':
+      return 'text-green-500 bg-green-100 dark:bg-green-900/30';
+    case 'B':
+      return 'text-blue-500 bg-blue-100 dark:bg-blue-900/30';
+    case 'C':
+      return 'text-yellow-500 bg-yellow-100 dark:bg-yellow-900/30';
+    case 'D':
+      return 'text-orange-500 bg-orange-100 dark:bg-orange-900/30';
+    case 'F':
+      return 'text-red-500 bg-red-100 dark:bg-red-900/30';
+    default:
+      return 'text-gray-500 bg-gray-100 dark:bg-gray-900/30';
   }
+};
 
+const getFileIcon = (name, type) => {
+  if (type === 'tree') return '📁';
   const ext = name.split('.').pop()?.toLowerCase();
-  const iconMap = {
-    js: 'text-yellow-400',
-    jsx: 'text-blue-400',
-    ts: 'text-blue-600',
-    tsx: 'text-blue-500',
-    json: 'text-yellow-600',
-    md: 'text-gray-500',
-    css: 'text-pink-500',
-    scss: 'text-pink-600',
-    html: 'text-orange-500',
-    py: 'text-green-500',
-    go: 'text-cyan-500',
-    rs: 'text-orange-600',
-    java: 'text-red-500',
-  };
+  switch (ext) {
+    case 'js':
+    case 'jsx':
+      return '🟨';
+    case 'ts':
+    case 'tsx':
+      return '🔷';
+    case 'css':
+    case 'scss':
+      return '🎨';
+    case 'html':
+      return '🌐';
+    case 'json':
+      return '📋';
+    case 'md':
+      return '📝';
+    case 'png':
+    case 'jpg':
+    case 'svg':
+      return '🖼️';
+    default:
+      return '📄';
+  }
+};
 
-  return (
-    <HiOutlineDocument
-      className={`w-4 h-4 ${iconMap[ext] || 'text-gray-400'}`}
-    />
-  );
-}
-
-// File Tree Component
-function FileTree({ files, onFileClick, level = 0 }) {
+function FileTree({ files, onFileSelect, level = 0 }) {
   const [expanded, setExpanded] = useState({});
 
   const toggleFolder = (path) => {
     setExpanded((prev) => ({ ...prev, [path]: !prev[path] }));
   };
-
-  if (!files || files.length === 0) return null;
 
   return (
     <div
@@ -85,24 +100,21 @@ function FileTree({ files, onFileClick, level = 0 }) {
       {files.map((file) => (
         <div key={file.path}>
           <button
-            onClick={() => {
-              if (file.type === 'tree') {
-                toggleFolder(file.path);
-              } else {
-                onFileClick(file);
-              }
-            }}
-            className='w-full flex items-center space-x-2 py-1.5 px-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-left text-sm'
+            onClick={() =>
+              file.type === 'tree'
+                ? toggleFolder(file.path)
+                : onFileSelect(file)
+            }
+            className='w-full flex items-center py-1 px-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-left text-sm'
           >
             {file.type === 'tree' && (
               <HiOutlineChevronRight
-                className={`w-3 h-3 text-gray-400 transition-transform ${
+                className={`w-3 h-3 mr-1 transition-transform ${
                   expanded[file.path] ? 'rotate-90' : ''
                 }`}
               />
             )}
-            {file.type !== 'tree' && <span className='w-3' />}
-            <FileIcon name={file.name} type={file.type} />
+            <span className='mr-2'>{getFileIcon(file.name, file.type)}</span>
             <span className='truncate text-gray-700 dark:text-gray-300'>
               {file.name}
             </span>
@@ -110,7 +122,7 @@ function FileTree({ files, onFileClick, level = 0 }) {
           {file.type === 'tree' && expanded[file.path] && file.children && (
             <FileTree
               files={file.children}
-              onFileClick={onFileClick}
+              onFileSelect={onFileSelect}
               level={level + 1}
             />
           )}
@@ -120,8 +132,7 @@ function FileTree({ files, onFileClick, level = 0 }) {
   );
 }
 
-// File Viewer Modal
-function FileViewerModal({ file, projectId, onClose }) {
+function FileViewerModal({ projectId, file, onClose }) {
   const [content, setContent] = useState(null);
   const [explanation, setExplanation] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -140,7 +151,7 @@ function FileViewerModal({ file, projectId, onClose }) {
       }
     };
     fetchContent();
-  }, [file.path, projectId]);
+  }, [projectId, file.path]);
 
   const handleExplain = async () => {
     if (explanation) {
@@ -171,18 +182,15 @@ function FileViewerModal({ file, projectId, onClose }) {
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className='bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-4xl w-full max-h-[85vh] overflow-hidden flex flex-col'
+        className='bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-4xl max-h-[85vh] overflow-hidden flex flex-col'
         onClick={(e) => e.stopPropagation()}
       >
         <div className='p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between'>
-          <div className='flex items-center space-x-3'>
-            <FileIcon name={file.name} type='blob' />
-            <div>
-              <h3 className='font-semibold text-gray-900 dark:text-white'>
-                {file.name}
-              </h3>
-              <p className='text-xs text-gray-500'>{file.path}</p>
-            </div>
+          <div className='flex items-center space-x-2'>
+            <span>{getFileIcon(file.name, 'blob')}</span>
+            <span className='font-medium text-gray-900 dark:text-white'>
+              {file.path}
+            </span>
           </div>
           <div className='flex items-center space-x-2'>
             <button
@@ -193,7 +201,7 @@ function FileViewerModal({ file, projectId, onClose }) {
               {loadingExplanation ? (
                 <div className='w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mr-2' />
               ) : (
-                <HiOutlineEye className='w-4 h-4 mr-1.5' />
+                <HiOutlineInformationCircle className='w-4 h-4 mr-1' />
               )}
               {showExplanation ? 'Hide Analysis' : 'Analyze'}
             </button>
@@ -201,476 +209,227 @@ function FileViewerModal({ file, projectId, onClose }) {
               onClick={onClose}
               className='p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg'
             >
-              <HiOutlineX className='w-5 h-5 text-gray-500' />
+              <HiOutlineX className='w-5 h-5' />
             </button>
           </div>
         </div>
 
-        <div className='flex-1 overflow-hidden flex'>
-          {/* Code Content */}
-          <div
-            className={`flex-1 overflow-auto ${
-              showExplanation ? 'w-1/2' : 'w-full'
-            }`}
-          >
-            {loading ? (
-              <div className='flex items-center justify-center h-full'>
-                <div className='w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin' />
-              </div>
-            ) : (
-              <pre className='p-4 text-sm text-gray-800 dark:text-gray-200 overflow-auto h-full'>
-                <code>{content}</code>
-              </pre>
-            )}
-          </div>
-
-          {/* Explanation Panel */}
-          <AnimatePresence>
-            {showExplanation && explanation && (
-              <motion.div
-                initial={{ width: 0, opacity: 0 }}
-                animate={{ width: '50%', opacity: 1 }}
-                exit={{ width: 0, opacity: 0 }}
-                className='border-l border-gray-200 dark:border-gray-700 overflow-auto bg-gray-50 dark:bg-gray-900'
-              >
-                <div className='p-4 space-y-4'>
-                  <div className='flex items-center space-x-2 text-purple-600 dark:text-purple-400'>
-                    <HiOutlineLightBulb className='w-5 h-5' />
-                    <h4 className='font-semibold'>Code Analysis</h4>
-                  </div>
-
-                  {/* Purpose */}
+        <AnimatePresence>
+          {showExplanation && explanation && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className='border-b border-gray-200 dark:border-gray-700 bg-purple-50 dark:bg-purple-900/20'
+            >
+              <div className='p-4 space-y-3'>
+                <div className='flex items-start justify-between'>
                   <div>
-                    <h5 className='text-xs font-semibold text-gray-500 uppercase mb-1'>
-                      Purpose
-                    </h5>
-                    <p className='text-sm text-gray-700 dark:text-gray-300'>
+                    <h4 className='font-semibold text-gray-900 dark:text-white'>
+                      File Analysis
+                    </h4>
+                    <p className='text-sm text-gray-600 dark:text-gray-400'>
                       {explanation.purpose}
                     </p>
                   </div>
-
-                  {/* Type Analysis */}
-                  {explanation.typeAnalysis && (
-                    <div>
-                      <h5 className='text-xs font-semibold text-gray-500 uppercase mb-1'>
-                        File Type
-                      </h5>
-                      <p className='text-sm text-gray-700 dark:text-gray-300'>
-                        {explanation.typeAnalysis}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Key Elements */}
-                  {explanation.keyElements?.length > 0 && (
-                    <div>
-                      <h5 className='text-xs font-semibold text-gray-500 uppercase mb-1'>
-                        Key Elements
-                      </h5>
-                      <ul className='space-y-1'>
-                        {explanation.keyElements.map((el, idx) => (
-                          <li
-                            key={idx}
-                            className='text-sm text-gray-700 dark:text-gray-300 flex items-start'
-                          >
-                            <span className='text-purple-500 mr-2'>•</span>
-                            {el}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Dependencies */}
-                  {explanation.dependencies?.length > 0 && (
-                    <div>
-                      <h5 className='text-xs font-semibold text-gray-500 uppercase mb-1'>
-                        Dependencies
-                      </h5>
-                      <div className='flex flex-wrap gap-1'>
-                        {explanation.dependencies.map((dep, idx) => (
-                          <span
-                            key={idx}
-                            className='text-xs px-2 py-0.5 bg-gray-200 dark:bg-gray-700 rounded'
-                          >
-                            {dep}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Stats */}
-                  <div className='grid grid-cols-2 gap-2 pt-2 border-t border-gray-200 dark:border-gray-700'>
-                    <div className='text-center p-2 bg-white dark:bg-gray-800 rounded'>
-                      <p className='text-lg font-bold text-gray-900 dark:text-white'>
-                        {explanation.lineCount}
-                      </p>
-                      <p className='text-xs text-gray-500'>Lines</p>
-                    </div>
-                    <div className='text-center p-2 bg-white dark:bg-gray-800 rounded'>
-                      <p className='text-lg font-bold text-gray-900 dark:text-white'>
-                        {explanation.complexity}
-                      </p>
-                      <p className='text-xs text-gray-500'>Complexity</p>
-                    </div>
+                  <div className='flex items-center space-x-2'>
+                    <span
+                      className={`px-2 py-1 rounded text-xs font-medium ${
+                        explanation.complexity === 'High'
+                          ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                          : explanation.complexity === 'Medium'
+                          ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                          : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                      }`}
+                    >
+                      {explanation.complexity} Complexity
+                    </span>
+                    <span className='text-xs text-gray-500'>
+                      {explanation.lineCount} lines
+                    </span>
                   </div>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+
+                {explanation.keyElements?.length > 0 && (
+                  <div>
+                    <h5 className='text-xs font-semibold text-gray-500 uppercase mb-1'>
+                      Key Elements
+                    </h5>
+                    <div className='flex flex-wrap gap-1'>
+                      {explanation.keyElements.map((el, idx) => (
+                        <span
+                          key={idx}
+                          className='text-xs px-2 py-0.5 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700'
+                        >
+                          {el}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className='flex-1 overflow-auto'>
+          {loading ? (
+            <div className='flex items-center justify-center h-64'>
+              <div className='w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin' />
+            </div>
+          ) : (
+            <pre className='p-4 text-sm text-gray-800 dark:text-gray-200 overflow-x-auto'>
+              <code>{content}</code>
+            </pre>
+          )}
         </div>
       </motion.div>
     </motion.div>
   );
 }
 
-// Code Quality Score Component
-function CodeQualityScore({ quality }) {
-  if (!quality || quality.score === undefined) return null;
+function TaskComparisonModal({ projectId, onClose }) {
+  const [comparison, setComparison] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const getGradeColor = (grade) => {
-    const colors = {
-      'A+': 'text-green-500 bg-green-100 dark:bg-green-900/30',
-      A: 'text-green-500 bg-green-100 dark:bg-green-900/30',
-      B: 'text-blue-500 bg-blue-100 dark:bg-blue-900/30',
-      C: 'text-yellow-500 bg-yellow-100 dark:bg-yellow-900/30',
-      D: 'text-orange-500 bg-orange-100 dark:bg-orange-900/30',
-      F: 'text-red-500 bg-red-100 dark:bg-red-900/30',
-      'N/A': 'text-gray-500 bg-gray-100 dark:bg-gray-900/30',
+  useEffect(() => {
+    const fetchComparison = async () => {
+      try {
+        const data = await githubAPI.compareWithCode(projectId);
+        setComparison(data);
+      } catch (error) {
+        console.error('Failed to compare:', error);
+      } finally {
+        setLoading(false);
+      }
     };
-    return colors[grade] || colors['N/A'];
-  };
+    fetchComparison();
+  }, [projectId]);
 
   return (
-    <div className='p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-lg'>
-      <div className='flex items-center justify-between mb-3'>
-        <div className='flex items-center space-x-2'>
-          <HiOutlineShieldCheck className='w-5 h-5 text-blue-600' />
-          <h4 className='font-semibold text-gray-900 dark:text-white'>
-            Code Quality
-          </h4>
-        </div>
-        <div
-          className={`px-3 py-1 rounded-full font-bold text-lg ${getGradeColor(
-            quality.grade
-          )}`}
-        >
-          {quality.grade}
-        </div>
-      </div>
-
-      {/* Progress Bar */}
-      <div className='mb-3'>
-        <div className='flex justify-between text-xs text-gray-500 mb-1'>
-          <span>Score</span>
-          <span>{quality.score}/100</span>
-        </div>
-        <div className='w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2'>
-          <div
-            className={`h-2 rounded-full transition-all ${
-              quality.score >= 70
-                ? 'bg-green-500'
-                : quality.score >= 50
-                ? 'bg-yellow-500'
-                : 'bg-red-500'
-            }`}
-            style={{ width: `${quality.score}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Quality Checklist */}
-      <div className='grid grid-cols-2 gap-2 text-xs'>
-        {Object.entries(quality.details || {})
-          .slice(0, 6)
-          .map(([key, value]) => (
-            <div key={key} className='flex items-center space-x-1.5'>
-              {value ? (
-                <HiOutlineCheckCircle className='w-3.5 h-3.5 text-green-500' />
-              ) : (
-                <div className='w-3.5 h-3.5 rounded-full border border-gray-300' />
-              )}
-              <span
-                className={
-                  value ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400'
-                }
-              >
-                {key
-                  .replace(/^has/, '')
-                  .replace(/([A-Z])/g, ' $1')
-                  .trim()}
-              </span>
-            </div>
-          ))}
-      </div>
-
-      {/* Top Recommendations */}
-      {quality.recommendations?.length > 0 && (
-        <div className='mt-3 pt-3 border-t border-gray-200 dark:border-gray-700'>
-          <p className='text-xs text-gray-500 mb-2'>Top Recommendations:</p>
-          <ul className='space-y-1'>
-            {quality.recommendations.slice(0, 2).map((rec, idx) => (
-              <li
-                key={idx}
-                className='text-xs text-gray-600 dark:text-gray-400 flex items-start'
-              >
-                <HiOutlineLightBulb className='w-3 h-3 text-yellow-500 mr-1.5 mt-0.5 flex-shrink-0' />
-                {rec}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Design Patterns Component
-function DesignPatternsCard({ patterns }) {
-  if (!patterns || !patterns.primary) return null;
-
-  const paradigmIcons = {
-    'object-oriented': '🏛️',
-    functional: '⚡',
-    mixed: '🔀',
-    procedural: '📋',
-    unknown: '❓',
-  };
-
-  const paradigmColors = {
-    'object-oriented': 'from-blue-500 to-indigo-500',
-    functional: 'from-purple-500 to-pink-500',
-    mixed: 'from-green-500 to-teal-500',
-    procedural: 'from-orange-500 to-red-500',
-    unknown: 'from-gray-400 to-gray-500',
-  };
-
-  return (
-    <div className='p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700'>
-      <div className='flex items-center space-x-2 mb-3'>
-        <HiOutlineCube className='w-5 h-5 text-indigo-600' />
-        <h4 className='font-semibold text-gray-900 dark:text-white'>
-          Design Approach
-        </h4>
-      </div>
-
-      {/* Primary Paradigm */}
-      <div
-        className={`bg-gradient-to-r ${
-          paradigmColors[patterns.primary]
-        } p-3 rounded-lg text-white mb-3`}
-      >
-        <div className='flex items-center space-x-2'>
-          <span className='text-2xl'>{paradigmIcons[patterns.primary]}</span>
-          <div>
-            <p className='font-bold capitalize'>
-              {patterns.primary.replace('-', ' ')}
-            </p>
-            <p className='text-xs opacity-90'>Primary Paradigm</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Description */}
-      <p className='text-sm text-gray-600 dark:text-gray-400 mb-3'>
-        {patterns.description}
-      </p>
-
-      {/* Detected Patterns */}
-      {patterns.patterns?.length > 0 && (
-        <div>
-          <p className='text-xs font-semibold text-gray-500 uppercase mb-2'>
-            Patterns Detected
-          </p>
-          <div className='flex flex-wrap gap-1'>
-            {patterns.patterns.slice(0, 6).map((pattern, idx) => (
-              <span
-                key={idx}
-                className='text-xs px-2 py-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full'
-              >
-                {pattern}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Architecture Card Component
-function ArchitectureCard({ architecture }) {
-  if (!architecture || !architecture.style) return null;
-
-  const styleIcons = {
-    monolith: '🏢',
-    microservices: '🔷',
-    serverless: '☁️',
-    jamstack: '⚡',
-    unknown: '❓',
-  };
-
-  return (
-    <div className='p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700'>
-      <div className='flex items-center space-x-2 mb-3'>
-        <HiOutlineScale className='w-5 h-5 text-teal-600' />
-        <h4 className='font-semibold text-gray-900 dark:text-white'>
-          Architecture
-        </h4>
-      </div>
-
-      <div className='flex items-center space-x-3 mb-3'>
-        <span className='text-3xl'>
-          {styleIcons[architecture.style] || '🏗️'}
-        </span>
-        <div>
-          <p className='font-bold text-gray-900 dark:text-white capitalize'>
-            {architecture.style}
-          </p>
-          <p className='text-xs text-gray-500'>Architecture Style</p>
-        </div>
-      </div>
-
-      <p className='text-sm text-gray-600 dark:text-gray-400 mb-3'>
-        {architecture.description}
-      </p>
-
-      {/* Layers */}
-      {architecture.layers?.length > 0 && (
-        <div>
-          <p className='text-xs font-semibold text-gray-500 uppercase mb-2'>
-            Layers
-          </p>
-          <div className='space-y-1'>
-            {architecture.layers.map((layer, idx) => (
-              <div key={idx} className='flex items-center space-x-2 text-sm'>
-                <div className='w-2 h-2 rounded-full bg-teal-500' />
-                <span className='text-gray-700 dark:text-gray-300'>
-                  {layer}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Deploy Status Component
-function DeployStatus({ analysis }) {
-  const platform = analysis?.deployPlatform;
-
-  if (!platform) {
-    return (
-      <div className='p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg flex items-center justify-between'>
-        <div className='flex items-center space-x-2'>
-          <HiOutlineCloudUpload className='w-5 h-5 text-gray-400' />
-          <span className='text-sm text-gray-500'>
-            No deploy config detected
-          </span>
-        </div>
-        <span className='text-xs px-2 py-1 bg-gray-200 dark:bg-gray-600 rounded'>
-          Not Configured
-        </span>
-      </div>
-    );
-  }
-
-  const platformInfo = {
-    vercel: { name: 'Vercel', color: 'bg-black text-white', icon: '▲' },
-    netlify: { name: 'Netlify', color: 'bg-teal-500 text-white', icon: '◆' },
-    railway: { name: 'Railway', color: 'bg-purple-600 text-white', icon: '🚂' },
-    render: { name: 'Render', color: 'bg-green-600 text-white', icon: '⚡' },
-    fly: { name: 'Fly.io', color: 'bg-violet-600 text-white', icon: '✈️' },
-    heroku: { name: 'Heroku', color: 'bg-purple-500 text-white', icon: '⬡' },
-    gcp: { name: 'Google Cloud', color: 'bg-blue-500 text-white', icon: '☁️' },
-    'aws-amplify': {
-      name: 'AWS Amplify',
-      color: 'bg-orange-500 text-white',
-      icon: '🔶',
-    },
-  };
-
-  const info = platformInfo[platform] || {
-    name: platform,
-    color: 'bg-gray-500 text-white',
-    icon: '📦',
-  };
-
-  return (
-    <div className='p-3 bg-green-50 dark:bg-green-900/20 rounded-lg flex items-center justify-between'>
-      <div className='flex items-center space-x-2'>
-        <HiOutlineCloudUpload className='w-5 h-5 text-green-600' />
-        <span className='text-sm text-gray-700 dark:text-gray-300'>
-          Deploy Platform Detected
-        </span>
-      </div>
-      <span className={`text-xs px-2 py-1 rounded font-medium ${info.color}`}>
-        {info.icon} {info.name}
-      </span>
-    </div>
-  );
-}
-
-// Section Header Component
-function SectionHeader({
-  section,
-  icon: Icon,
-  title,
-  count,
-  color = 'gray',
-  expanded,
-  onToggle,
-}) {
-  return (
-    <button
-      onClick={onToggle}
-      className='w-full flex items-center justify-between py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg px-2 transition-colors'
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className='fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4'
+      onClick={onClose}
     >
-      <div className='flex items-center space-x-2'>
-        <Icon className={`w-4 h-4 text-${color}-500`} />
-        <span className='text-sm font-semibold text-gray-700 dark:text-gray-300'>
-          {title}
-        </span>
-        {count !== undefined && (
-          <span
-            className={`text-xs px-1.5 py-0.5 rounded-full bg-${color}-100 dark:bg-${color}-900/30 text-${color}-600 dark:text-${color}-400`}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className='bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col'
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className='p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between'>
+          <div className='flex items-center space-x-2'>
+            <HiOutlineClipboardCheck className='w-5 h-5 text-blue-500' />
+            <h3 className='font-semibold text-gray-900 dark:text-white'>
+              Task vs Code Comparison
+            </h3>
+          </div>
+          <button
+            onClick={onClose}
+            className='p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg'
           >
-            {count}
-          </span>
-        )}
-      </div>
-      {expanded ? (
-        <HiOutlineChevronUp className='w-4 h-4 text-gray-400' />
-      ) : (
-        <HiOutlineChevronDown className='w-4 h-4 text-gray-400' />
-      )}
-    </button>
+            <HiOutlineX className='w-5 h-5' />
+          </button>
+        </div>
+
+        <div className='flex-1 overflow-auto p-4'>
+          {loading ? (
+            <div className='flex items-center justify-center h-64'>
+              <div className='w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin' />
+            </div>
+          ) : comparison && comparison.length > 0 ? (
+            <div className='space-y-6'>
+              {comparison.map((phase) => (
+                <div key={phase.phaseId} className='space-y-2'>
+                  <h4 className='font-medium text-gray-900 dark:text-white'>
+                    {phase.phaseTitle}
+                  </h4>
+                  <div className='space-y-2'>
+                    {phase.tasks.map((task) => (
+                      <div
+                        key={task.taskId}
+                        className={`p-3 rounded-lg border ${
+                          task.status === 'likely-done'
+                            ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                            : task.status === 'in-progress'
+                            ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'
+                            : 'bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600'
+                        }`}
+                      >
+                        <div className='flex items-center justify-between'>
+                          <div className='flex items-center space-x-2'>
+                            <span
+                              className={`w-2 h-2 rounded-full ${
+                                task.status === 'likely-done'
+                                  ? 'bg-green-500'
+                                  : task.status === 'in-progress'
+                                  ? 'bg-yellow-500'
+                                  : 'bg-gray-400'
+                              }`}
+                            />
+                            <span className='text-sm text-gray-700 dark:text-gray-300'>
+                              {task.taskTitle}
+                            </span>
+                          </div>
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded ${
+                              task.status === 'likely-done'
+                                ? 'bg-green-100 text-green-700'
+                                : task.status === 'in-progress'
+                                ? 'bg-yellow-100 text-yellow-700'
+                                : 'bg-gray-100 text-gray-700'
+                            }`}
+                          >
+                            {task.matchScore}% match
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className='text-center text-gray-500'>
+              No comparison data available
+            </p>
+          )}
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
-// Main GitHubPanel Component
 function GitHubPanel({ project, onUpdate }) {
   const [commits, setCommits] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [pullRequests, setPullRequests] = useState([]);
+  const [issues, setIssues] = useState([]);
+  const [contributors, setContributors] = useState([]);
+  const [fileTree, setFileTree] = useState([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [showConnect, setShowConnect] = useState(false);
   const [showRepoSelector, setShowRepoSelector] = useState(false);
-  const [fileTree, setFileTree] = useState([]);
   const [selectedFile, setSelectedFile] = useState(null);
-  const [loadingFiles, setLoadingFiles] = useState(false);
+  const [showTaskComparison, setShowTaskComparison] = useState(false);
   const [expandedSections, setExpandedSections] = useState({
-    quality: true,
-    patterns: true,
-    architecture: false,
+    codeQuality: true,
+    designPatterns: true,
+    architecture: true,
     techStack: true,
-    detected: false,
+    detected: true,
     missing: false,
     suggestions: true,
     structure: false,
+    commits: true,
     files: false,
-    commits: false,
+    prs: false,
+    issues: false,
+    contributors: false,
   });
 
   const isConnected = project.github?.isConnected;
@@ -678,29 +437,36 @@ function GitHubPanel({ project, onUpdate }) {
 
   useEffect(() => {
     if (isConnected) {
-      fetchCommits();
+      fetchAllData();
     }
   }, [isConnected, project._id]);
 
-  const fetchCommits = async () => {
+  const fetchAllData = async () => {
     try {
-      const data = await githubAPI.getCommits(project._id);
-      setCommits(data);
+      const [commitsData, branchesData, prsData, issuesData, contributorsData] =
+        await Promise.all([
+          githubAPI.getCommits(project._id).catch(() => []),
+          githubAPI.getBranches(project._id).catch(() => []),
+          githubAPI.getPullRequests(project._id).catch(() => []),
+          githubAPI.getIssues(project._id).catch(() => []),
+          githubAPI.getContributors(project._id).catch(() => []),
+        ]);
+      setCommits(commitsData);
+      setBranches(branchesData);
+      setPullRequests(prsData);
+      setIssues(issuesData);
+      setContributors(contributorsData);
     } catch (error) {
-      console.error('Failed to fetch commits:', error);
+      console.error('Failed to fetch GitHub data:', error);
     }
   };
 
   const fetchFileTree = async () => {
-    if (fileTree.length > 0) return;
-    setLoadingFiles(true);
     try {
       const data = await githubAPI.getFileTree(project._id);
       setFileTree(data);
     } catch (error) {
       console.error('Failed to fetch file tree:', error);
-    } finally {
-      setLoadingFiles(false);
     }
   };
 
@@ -709,12 +475,9 @@ function GitHubPanel({ project, onUpdate }) {
     try {
       const data = await githubAPI.syncProject(project._id);
       if (onUpdate) onUpdate(data.project);
-      await fetchCommits();
-      setFileTree([]); // Reset to refetch on next expand
+      await fetchAllData();
     } catch (error) {
-      alert(
-        'Sync failed: ' + (error.response?.data?.message || 'Unknown error')
-      );
+      alert('Sync failed');
     } finally {
       setIsSyncing(false);
     }
@@ -731,53 +494,73 @@ function GitHubPanel({ project, onUpdate }) {
       setShowRepoSelector(false);
       setShowConnect(false);
     } catch (error) {
-      alert(
-        'Failed to connect: ' +
-          (error.response?.data?.message || 'Unknown error')
-      );
-    }
-  };
-
-  const handleCreateRepo = async () => {
-    if (!window.confirm('Create a new private repository on GitHub?')) return;
-    try {
-      const data = await githubAPI.createRepo(project._id, true);
-      if (onUpdate) onUpdate(data.project);
-      alert(`Repository created! View at: ${data.repoUrl}`);
-    } catch (error) {
-      alert(
-        'Failed to create: ' +
-          (error.response?.data?.message || 'Unknown error')
-      );
+      alert('Failed to connect repository');
     }
   };
 
   const handleDisconnectRepo = async () => {
-    if (
-      !window.confirm(
-        'Disconnect this repository? Your project data will remain.'
-      )
-    )
-      return;
+    if (!window.confirm('Disconnect this repository?')) return;
     try {
       const data = await githubAPI.disconnectRepo(project._id);
       if (onUpdate) onUpdate(data.project);
     } catch (error) {
-      alert(
-        'Failed to disconnect: ' +
-          (error.response?.data?.message || 'Unknown error')
-      );
+      alert('Failed to disconnect');
+    }
+  };
+
+  const handleCreateRepo = async () => {
+    if (!window.confirm('Create a new private repository?')) return;
+    try {
+      const data = await githubAPI.createRepo(project._id, true);
+      if (onUpdate) onUpdate(data.project);
+      alert('Repository created!');
+    } catch (error) {
+      alert('Failed to create repository');
     }
   };
 
   const toggleSection = (section) => {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
-    if (section === 'files' && !expandedSections.files) {
-      fetchFileTree();
-    }
   };
 
-  // Not Connected State
+  const SectionHeader = ({
+    section,
+    icon: Icon,
+    title,
+    count,
+    color = 'gray',
+    badge = null,
+  }) => (
+    <button
+      onClick={() => toggleSection(section)}
+      className='w-full flex items-center justify-between py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg px-2 transition-colors'
+    >
+      <div className='flex items-center space-x-2'>
+        <Icon className={`w-4 h-4 text-${color}-500`} />
+        <span className='text-sm font-semibold text-gray-700 dark:text-gray-300'>
+          {title}
+        </span>
+        {count !== undefined && count > 0 && (
+          <span className='text-xs px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'>
+            {count}
+          </span>
+        )}
+        {badge && (
+          <span
+            className={`text-xs px-2 py-0.5 rounded-full font-bold ${badge.className}`}
+          >
+            {badge.text}
+          </span>
+        )}
+      </div>
+      {expandedSections[section] ? (
+        <HiOutlineChevronUp className='w-4 h-4 text-gray-400' />
+      ) : (
+        <HiOutlineChevronDown className='w-4 h-4 text-gray-400' />
+      )}
+    </button>
+  );
+
   if (!isConnected) {
     return (
       <div className='bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6'>
@@ -795,8 +578,8 @@ function GitHubPanel({ project, onUpdate }) {
         </div>
 
         <p className='text-sm text-gray-500 dark:text-gray-400 mt-2'>
-          Connect a GitHub repository to analyze your codebase, track progress,
-          and get insights on code quality and architecture.
+          Connect a GitHub repository to analyze your codebase and get
+          suggestions.
         </p>
 
         <AnimatePresence>
@@ -838,10 +621,8 @@ function GitHubPanel({ project, onUpdate }) {
     );
   }
 
-  // Connected State
   return (
     <div className='bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden'>
-      {/* Header */}
       <div className='p-4 border-b border-gray-100 dark:border-gray-700'>
         <div className='flex justify-between items-start'>
           <div>
@@ -862,48 +643,205 @@ function GitHubPanel({ project, onUpdate }) {
           </div>
           <div className='flex items-center space-x-2'>
             <button
-              onClick={handleDisconnectRepo}
-              className='p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors'
-              title='Switch repository'
-            >
-              <HiOutlineSwitchHorizontal className='w-4 h-4' />
-            </button>
-            <button
               onClick={handleSync}
               disabled={isSyncing}
               className='p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors'
-              title='Re-analyze repository'
+              title='Re-analyze'
             >
               <HiOutlineRefresh
                 className={`w-5 h-5 ${isSyncing ? 'animate-spin' : ''}`}
               />
             </button>
+            <button
+              onClick={() => setShowRepoSelector(true)}
+              className='p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors'
+              title='Switch repository'
+            >
+              <HiOutlineSwitchHorizontal className='w-5 h-5' />
+            </button>
+            <button
+              onClick={handleDisconnectRepo}
+              className='p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors'
+              title='Disconnect'
+            >
+              <HiOutlineBan className='w-5 h-5' />
+            </button>
           </div>
         </div>
-        {project.github.lastSyncedAt && (
-          <p className='text-xs text-gray-400 mt-2'>
-            Last analyzed:{' '}
-            {new Date(project.github.lastSyncedAt).toLocaleString()}
-          </p>
-        )}
+
+        <div className='flex items-center space-x-4 mt-3 text-xs text-gray-500'>
+          {branches.length > 0 && <span>{branches.length} branches</span>}
+          {pullRequests.length > 0 && (
+            <span className='text-green-600'>
+              {pullRequests.length} open PRs
+            </span>
+          )}
+          {issues.length > 0 && (
+            <span className='text-yellow-600'>{issues.length} open issues</span>
+          )}
+        </div>
+
+        <button
+          onClick={() => setShowTaskComparison(true)}
+          className='mt-3 w-full px-3 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg text-sm font-medium hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors flex items-center justify-center'
+        >
+          <HiOutlineClipboardCheck className='w-4 h-4 mr-2' />
+          Compare Tasks with Code
+        </button>
       </div>
 
       <div className='p-4 space-y-4'>
-        {/* Deploy Status */}
-        <DeployStatus analysis={analysis} />
-
-        {/* Code Quality Score */}
         {analysis?.codeQuality && (
-          <CodeQualityScore quality={analysis.codeQuality} />
+          <div>
+            <SectionHeader
+              section='codeQuality'
+              icon={HiOutlineShieldCheck}
+              title='Code Quality'
+              color='blue'
+              badge={{
+                text: analysis.codeQuality.grade || 'N/A',
+                className: getGradeColor(analysis.codeQuality.grade),
+              }}
+            />
+            <AnimatePresence>
+              {expandedSections.codeQuality && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className='mt-2 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg'
+                >
+                  <div className='mb-4'>
+                    <div className='flex justify-between text-sm mb-1'>
+                      <span className='text-gray-600 dark:text-gray-400'>
+                        Score
+                      </span>
+                      <span className='font-bold'>
+                        {analysis.codeQuality.score || 0}/100
+                      </span>
+                    </div>
+                    <div className='w-full bg-gray-200 dark:bg-gray-600 rounded-full h-3'>
+                      <div
+                        className={`h-3 rounded-full ${
+                          (analysis.codeQuality.score || 0) >= 80
+                            ? 'bg-green-500'
+                            : (analysis.codeQuality.score || 0) >= 60
+                            ? 'bg-blue-500'
+                            : (analysis.codeQuality.score || 0) >= 40
+                            ? 'bg-yellow-500'
+                            : 'bg-red-500'
+                        }`}
+                        style={{ width: `${analysis.codeQuality.score || 0}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {analysis.codeQuality.recommendations?.length > 0 && (
+                    <div className='space-y-1'>
+                      {analysis.codeQuality.recommendations
+                        .slice(0, 3)
+                        .map((rec, idx) => (
+                          <div
+                            key={idx}
+                            className='flex items-start space-x-2 text-sm'
+                          >
+                            <HiOutlineLightBulb className='w-4 h-4 text-yellow-500 mt-0.5' />
+                            <span className='text-gray-600 dark:text-gray-400'>
+                              {rec}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         )}
 
-        {/* Design Patterns & Architecture Row */}
-        <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-          <DesignPatternsCard patterns={analysis?.designPatterns} />
-          <ArchitectureCard architecture={analysis?.architecture} />
-        </div>
+        {analysis?.designPatterns && (
+          <div>
+            <SectionHeader
+              section='designPatterns'
+              icon={HiOutlineTemplate}
+              title='Design Patterns'
+              color='purple'
+              badge={{
+                text:
+                  analysis.designPatterns.primary === 'object-oriented'
+                    ? 'OOP'
+                    : analysis.designPatterns.primary === 'functional'
+                    ? 'FP'
+                    : analysis.designPatterns.primary === 'procedural'
+                    ? 'Procedural'
+                    : 'Mixed',
+                className:
+                  'bg-purple-100 dark:bg-purple-900/30 text-purple-600',
+              }}
+            />
+            <AnimatePresence>
+              {expandedSections.designPatterns && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className='mt-2 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg'
+                >
+                  <p className='text-sm text-gray-600 dark:text-gray-400 mb-3'>
+                    {analysis.designPatterns.description}
+                  </p>
+                  {analysis.designPatterns.patterns?.length > 0 && (
+                    <div className='flex flex-wrap gap-2'>
+                      {analysis.designPatterns.patterns.map((pattern, idx) => (
+                        <span
+                          key={idx}
+                          className='text-xs px-2 py-1 bg-purple-50 dark:bg-purple-900/30 text-purple-600 rounded-full'
+                        >
+                          {pattern}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
 
-        {/* Tech Stack Section */}
+        {analysis?.architecture && (
+          <div>
+            <SectionHeader
+              section='architecture'
+              icon={HiOutlineCube}
+              title='Architecture'
+              color='indigo'
+              badge={{
+                text:
+                  (analysis.architecture.style || 'Unknown')
+                    .charAt(0)
+                    .toUpperCase() +
+                  (analysis.architecture.style || 'unknown').slice(1),
+                className:
+                  'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600',
+              }}
+            />
+            <AnimatePresence>
+              {expandedSections.architecture && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className='mt-2 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg'
+                >
+                  <p className='text-sm text-gray-600 dark:text-gray-400'>
+                    {analysis.architecture.description}
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
+
         {analysis?.techStack && (
           <div>
             <SectionHeader
@@ -916,8 +854,6 @@ function GitHubPanel({ project, onUpdate }) {
                 (analysis.techStack.database?.length || 0)
               }
               color='blue'
-              expanded={expandedSections.techStack}
-              onToggle={() => toggleSection('techStack')}
             />
             <AnimatePresence>
               {expandedSections.techStack && (
@@ -930,90 +866,45 @@ function GitHubPanel({ project, onUpdate }) {
                   {analysis.techStack.frontend?.length > 0 && (
                     <div className='flex items-start space-x-2'>
                       <HiOutlineDesktopComputer className='w-4 h-4 text-blue-500 mt-0.5' />
-                      <div>
-                        <span className='text-xs text-gray-500'>Frontend:</span>
-                        <div className='flex flex-wrap gap-1 mt-1'>
-                          {analysis.techStack.frontend.map((tech) => (
-                            <span
-                              key={tech}
-                              className='text-xs px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full'
-                            >
-                              {tech}
-                            </span>
-                          ))}
-                        </div>
+                      <div className='flex flex-wrap gap-1'>
+                        {analysis.techStack.frontend.map((tech) => (
+                          <span
+                            key={tech}
+                            className='text-xs px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-full'
+                          >
+                            {tech}
+                          </span>
+                        ))}
                       </div>
                     </div>
                   )}
                   {analysis.techStack.backend?.length > 0 && (
                     <div className='flex items-start space-x-2'>
                       <HiOutlineServer className='w-4 h-4 text-green-500 mt-0.5' />
-                      <div>
-                        <span className='text-xs text-gray-500'>Backend:</span>
-                        <div className='flex flex-wrap gap-1 mt-1'>
-                          {analysis.techStack.backend.map((tech) => (
-                            <span
-                              key={tech}
-                              className='text-xs px-2 py-0.5 bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full'
-                            >
-                              {tech}
-                            </span>
-                          ))}
-                        </div>
+                      <div className='flex flex-wrap gap-1'>
+                        {analysis.techStack.backend.map((tech) => (
+                          <span
+                            key={tech}
+                            className='text-xs px-2 py-0.5 bg-green-50 dark:bg-green-900/30 text-green-600 rounded-full'
+                          >
+                            {tech}
+                          </span>
+                        ))}
                       </div>
                     </div>
                   )}
                   {analysis.techStack.database?.length > 0 && (
                     <div className='flex items-start space-x-2'>
                       <HiOutlineDatabase className='w-4 h-4 text-purple-500 mt-0.5' />
-                      <div>
-                        <span className='text-xs text-gray-500'>Database:</span>
-                        <div className='flex flex-wrap gap-1 mt-1'>
-                          {analysis.techStack.database.map((tech) => (
-                            <span
-                              key={tech}
-                              className='text-xs px-2 py-0.5 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-full'
-                            >
-                              {tech}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  {analysis.techStack.styling?.length > 0 && (
-                    <div className='flex items-start space-x-2'>
-                      <HiOutlineColorSwatch className='w-4 h-4 text-pink-500 mt-0.5' />
-                      <div>
-                        <span className='text-xs text-gray-500'>Styling:</span>
-                        <div className='flex flex-wrap gap-1 mt-1'>
-                          {analysis.techStack.styling.map((tech) => (
-                            <span
-                              key={tech}
-                              className='text-xs px-2 py-0.5 bg-pink-50 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400 rounded-full'
-                            >
-                              {tech}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  {analysis.techStack.testing?.length > 0 && (
-                    <div className='flex items-start space-x-2'>
-                      <HiOutlineBeaker className='w-4 h-4 text-yellow-500 mt-0.5' />
-                      <div>
-                        <span className='text-xs text-gray-500'>Testing:</span>
-                        <div className='flex flex-wrap gap-1 mt-1'>
-                          {analysis.techStack.testing.map((tech) => (
-                            <span
-                              key={tech}
-                              className='text-xs px-2 py-0.5 bg-yellow-50 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 rounded-full'
-                            >
-                              {tech}
-                            </span>
-                          ))}
-                        </div>
+                      <div className='flex flex-wrap gap-1'>
+                        {analysis.techStack.database.map((tech) => (
+                          <span
+                            key={tech}
+                            className='text-xs px-2 py-0.5 bg-purple-50 dark:bg-purple-900/30 text-purple-600 rounded-full'
+                          >
+                            {tech}
+                          </span>
+                        ))}
                       </div>
                     </div>
                   )}
@@ -1023,44 +914,6 @@ function GitHubPanel({ project, onUpdate }) {
           </div>
         )}
 
-        {/* AI Suggestions */}
-        {analysis?.suggestions?.length > 0 && (
-          <div>
-            <SectionHeader
-              section='suggestions'
-              icon={HiOutlineLightBulb}
-              title='Recommendations'
-              count={analysis.suggestions.length}
-              color='purple'
-              expanded={expandedSections.suggestions}
-              onToggle={() => toggleSection('suggestions')}
-            />
-            <AnimatePresence>
-              {expandedSections.suggestions && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className='mt-2 space-y-2 pl-6'
-                >
-                  {analysis.suggestions.map((suggestion, idx) => (
-                    <div
-                      key={idx}
-                      className='flex items-start space-x-2 text-sm p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg'
-                    >
-                      <HiOutlineLightBulb className='w-4 h-4 text-purple-500 flex-shrink-0 mt-0.5' />
-                      <span className='text-gray-700 dark:text-gray-300'>
-                        {suggestion}
-                      </span>
-                    </div>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        )}
-
-        {/* Detected Features */}
         {analysis?.detectedFeatures?.length > 0 && (
           <div>
             <SectionHeader
@@ -1069,8 +922,6 @@ function GitHubPanel({ project, onUpdate }) {
               title="What's Built"
               count={analysis.detectedFeatures.length}
               color='green'
-              expanded={expandedSections.detected}
-              onToggle={() => toggleSection('detected')}
             />
             <AnimatePresence>
               {expandedSections.detected && (
@@ -1085,7 +936,7 @@ function GitHubPanel({ project, onUpdate }) {
                       key={idx}
                       className='flex items-center space-x-2 text-sm'
                     >
-                      <HiOutlineCheckCircle className='w-4 h-4 text-green-500 flex-shrink-0' />
+                      <HiOutlineCheckCircle className='w-4 h-4 text-green-500' />
                       <span className='text-gray-700 dark:text-gray-300'>
                         {feature}
                       </span>
@@ -1097,34 +948,31 @@ function GitHubPanel({ project, onUpdate }) {
           </div>
         )}
 
-        {/* Missing Features */}
-        {analysis?.missingFeatures?.length > 0 && (
+        {analysis?.suggestions?.length > 0 && (
           <div>
             <SectionHeader
-              section='missing'
-              icon={HiOutlineExclamationCircle}
-              title="What's Missing"
-              count={analysis.missingFeatures.length}
-              color='yellow'
-              expanded={expandedSections.missing}
-              onToggle={() => toggleSection('missing')}
+              section='suggestions'
+              icon={HiOutlineLightBulb}
+              title='Suggestions'
+              count={analysis.suggestions.length}
+              color='purple'
             />
             <AnimatePresence>
-              {expandedSections.missing && (
+              {expandedSections.suggestions && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
-                  className='mt-2 space-y-1 pl-6'
+                  className='mt-2 space-y-2 pl-6'
                 >
-                  {analysis.missingFeatures.map((feature, idx) => (
+                  {analysis.suggestions.map((suggestion, idx) => (
                     <div
                       key={idx}
-                      className='flex items-center space-x-2 text-sm'
+                      className='flex items-start space-x-2 text-sm p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg'
                     >
-                      <HiOutlineExclamationCircle className='w-4 h-4 text-yellow-500 flex-shrink-0' />
+                      <HiOutlineLightBulb className='w-4 h-4 text-purple-500 mt-0.5' />
                       <span className='text-gray-700 dark:text-gray-300'>
-                        {feature}
+                        {suggestion}
                       </span>
                     </div>
                   ))}
@@ -1134,16 +982,12 @@ function GitHubPanel({ project, onUpdate }) {
           </div>
         )}
 
-        {/* File Browser */}
         <div>
           <SectionHeader
             section='files'
-            icon={HiOutlineFolder}
+            icon={HiOutlineDocument}
             title='File Browser'
-            count={analysis?.files?.total}
-            color='indigo'
-            expanded={expandedSections.files}
-            onToggle={() => toggleSection('files')}
+            color='gray'
           />
           <AnimatePresence>
             {expandedSections.files && (
@@ -1151,30 +995,25 @@ function GitHubPanel({ project, onUpdate }) {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className='mt-2 max-h-64 overflow-auto border border-gray-200 dark:border-gray-700 rounded-lg'
+                className='mt-2'
               >
-                {loadingFiles ? (
-                  <div className='flex items-center justify-center p-8'>
-                    <div className='w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin' />
-                  </div>
-                ) : fileTree.length > 0 ? (
-                  <div className='p-2'>
-                    <FileTree
-                      files={fileTree}
-                      onFileClick={(file) => setSelectedFile(file)}
-                    />
-                  </div>
+                {fileTree.length === 0 ? (
+                  <button
+                    onClick={fetchFileTree}
+                    className='w-full py-3 text-sm text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg'
+                  >
+                    Load file tree...
+                  </button>
                 ) : (
-                  <p className='text-sm text-gray-500 text-center p-4'>
-                    No files found
-                  </p>
+                  <div className='max-h-64 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg p-2'>
+                    <FileTree files={fileTree} onFileSelect={setSelectedFile} />
+                  </div>
                 )}
               </motion.div>
             )}
           </AnimatePresence>
         </div>
 
-        {/* Recent Commits */}
         <div>
           <SectionHeader
             section='commits'
@@ -1182,8 +1021,6 @@ function GitHubPanel({ project, onUpdate }) {
             title='Recent Commits'
             count={commits.length}
             color='gray'
-            expanded={expandedSections.commits}
-            onToggle={() => toggleSection('commits')}
           />
           <AnimatePresence>
             {expandedSections.commits && (
@@ -1195,7 +1032,7 @@ function GitHubPanel({ project, onUpdate }) {
               >
                 {commits.length === 0 ? (
                   <p className='text-sm text-gray-500 italic'>
-                    No recent commits found.
+                    No commits found.
                   </p>
                 ) : (
                   commits.slice(0, 5).map((commit) => (
@@ -1204,19 +1041,16 @@ function GitHubPanel({ project, onUpdate }) {
                       href={commit.url}
                       target='_blank'
                       rel='noopener noreferrer'
-                      className='flex items-start text-sm hover:bg-gray-50 dark:hover:bg-gray-700/50 p-2 rounded-lg transition-colors'
+                      className='flex items-start text-sm hover:bg-gray-50 dark:hover:bg-gray-700/50 p-2 rounded-lg'
                     >
-                      <span className='font-mono text-xs bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded mr-2 text-gray-600 dark:text-gray-300 flex-shrink-0'>
+                      <span className='font-mono text-xs bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded mr-2'>
                         {commit.sha}
                       </span>
                       <div className='flex-1 min-w-0'>
                         <p className='truncate text-gray-900 dark:text-gray-200'>
                           {commit.message}
                         </p>
-                        <p className='text-xs text-gray-500'>
-                          {commit.author} •{' '}
-                          {new Date(commit.date).toLocaleDateString()}
-                        </p>
+                        <p className='text-xs text-gray-500'>{commit.author}</p>
                       </div>
                     </a>
                   ))
@@ -1225,27 +1059,33 @@ function GitHubPanel({ project, onUpdate }) {
             )}
           </AnimatePresence>
         </div>
-
-        {/* File Stats */}
-        {analysis?.files?.total > 0 && (
-          <div className='pt-3 border-t border-gray-100 dark:border-gray-700'>
-            <p className='text-xs text-gray-500 text-center'>
-              📁 {analysis.files.total} files in repository
-            </p>
-          </div>
-        )}
       </div>
 
-      {/* File Viewer Modal */}
       <AnimatePresence>
         {selectedFile && (
           <FileViewerModal
-            file={selectedFile}
             projectId={project._id}
+            file={selectedFile}
             onClose={() => setSelectedFile(null)}
           />
         )}
       </AnimatePresence>
+
+      <AnimatePresence>
+        {showTaskComparison && (
+          <TaskComparisonModal
+            projectId={project._id}
+            onClose={() => setShowTaskComparison(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {showRepoSelector && (
+        <RepoSelector
+          onSelect={handleConnectRepo}
+          onClose={() => setShowRepoSelector(false)}
+        />
+      )}
     </div>
   );
 }
