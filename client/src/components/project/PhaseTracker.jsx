@@ -1,8 +1,8 @@
 // client/src/components/project/PhaseTracker.jsx
 
 import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { aiAPI } from '../../services/api';
+import { motion, AnimatePresence, Reorder } from 'framer-motion';
+import { aiAPI, projectsAPI } from '../../services/api';
 import {
   HiOutlineSparkles,
   HiOutlineX,
@@ -13,9 +13,11 @@ import {
   HiOutlineCheck,
   HiOutlineClipboardCopy,
   HiOutlineAnnotation,
+  HiOutlinePlus,
+  HiOutlineMenuAlt2,
 } from 'react-icons/hi';
 
-// Task AI Help Modal Component (keep existing)
+// Task AI Help Modal Component
 function TaskAIHelp({ task, projectName, projectType, phaseName, onClose }) {
   const [help, setHelp] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -39,7 +41,7 @@ Provide a complete, step-by-step implementation guide with code examples. Be spe
         setHelp(response.response);
       } catch (err) {
         console.error('Failed to get AI help:', err);
-        setError('Failed to get AI help. Please try again.');
+        setError('Failed to get help. Please try again.');
       } finally {
         setIsLoading(false);
       }
@@ -129,14 +131,11 @@ Provide a complete, step-by-step implementation guide with code examples. Be spe
           )}
         </div>
 
-        <div className='p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50'>
-          <button
-            onClick={onClose}
-            className='px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-sm'
-          >
-            Close
-          </button>
-        </div>
+        {copied && (
+          <div className='absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-4 py-2 rounded-lg text-sm'>
+            Copied to clipboard!
+          </div>
+        )}
       </motion.div>
     </motion.div>
   );
@@ -177,20 +176,10 @@ function TaskDescriptionModal({ task, onSave, onClose }) {
         </div>
 
         <div className='p-4'>
-          <p className='text-sm text-gray-600 dark:text-gray-400 mb-3'>
-            Document how you implemented this task. This will be used in your
-            project documentation.
-          </p>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder='Describe your implementation...
-
-Example:
-- Used React Query for data fetching
-- Created reusable ProductCard component
-- Implemented lazy loading for images
-- Added error boundary for graceful failures'
+            placeholder='Document your implementation...'
             rows={6}
             className='w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg resize-none dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500'
             autoFocus
@@ -216,11 +205,93 @@ Example:
   );
 }
 
-// Single Phase Card with Inline Expansion
+// Add/Edit Phase Modal
+function PhaseModal({ phase, onSave, onClose }) {
+  const [title, setTitle] = useState(phase?.title || '');
+  const [description, setDescription] = useState(phase?.description || '');
+
+  const handleSave = () => {
+    if (!title.trim()) return;
+    onSave({ title: title.trim(), description: description.trim() });
+    onClose();
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className='fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4'
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className='bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full overflow-hidden'
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className='p-4 border-b border-gray-200 dark:border-gray-700'>
+          <h3 className='font-semibold text-gray-900 dark:text-white'>
+            {phase ? 'Edit Phase' : 'Add New Phase'}
+          </h3>
+        </div>
+
+        <div className='p-4 space-y-4'>
+          <div>
+            <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
+              Phase Title *
+            </label>
+            <input
+              type='text'
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder='e.g., User Authentication'
+              className='w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500'
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
+              Description (optional)
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder='What needs to be accomplished in this phase?'
+              rows={3}
+              className='w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg resize-none dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500'
+            />
+          </div>
+        </div>
+
+        <div className='p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-3'>
+          <button
+            onClick={onClose}
+            className='px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors'
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!title.trim()}
+            className='px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50'
+          >
+            {phase ? 'Save Changes' : 'Add Phase'}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// Single Phase Card
 function PhaseCard({
   project,
   phase,
   onPhaseUpdate,
+  onPhaseDelete,
+  onPhaseEdit,
   isUpdating,
   isExpanded,
   onToggle,
@@ -235,8 +306,6 @@ function PhaseCard({
   const [helpingTask, setHelpingTask] = useState(null);
   const [editingDescriptionIndex, setEditingDescriptionIndex] = useState(null);
 
-  const contentRef = useRef(null);
-
   const completedCount = localSubTasks.filter((st) => st.isComplete).length;
   const totalCount = localSubTasks.length;
   const allSubtasksComplete = totalCount > 0 && completedCount === totalCount;
@@ -244,11 +313,11 @@ function PhaseCard({
   useEffect(() => {
     setLocalNotes(phase.notes || '');
     setLocalSubTasks(phase.subTasks || []);
-  }, [phase.id, phase.notes, phase.subTasks]);
+  }, [phase._id, phase.notes, phase.subTasks]);
 
   const handleNotesSave = () => {
     if (localNotes !== phase.notes) {
-      onPhaseUpdate(phase.id, { notes: localNotes });
+      onPhaseUpdate(phase._id || phase.id, { notes: localNotes });
     }
   };
 
@@ -259,13 +328,18 @@ function PhaseCard({
     setLocalSubTasks(updated);
 
     const allComplete = updated.every((st) => st.isComplete);
-
     if (allComplete && !phase.isComplete) {
-      onPhaseUpdate(phase.id, { subTasks: updated, isComplete: true });
+      onPhaseUpdate(phase._id || phase.id, {
+        subTasks: updated,
+        isComplete: true,
+      });
     } else if (!allComplete && phase.isComplete) {
-      onPhaseUpdate(phase.id, { subTasks: updated, isComplete: false });
+      onPhaseUpdate(phase._id || phase.id, {
+        subTasks: updated,
+        isComplete: false,
+      });
     } else {
-      onPhaseUpdate(phase.id, { subTasks: updated });
+      onPhaseUpdate(phase._id || phase.id, { subTasks: updated });
     }
   };
 
@@ -274,7 +348,7 @@ function PhaseCard({
       idx === index ? { ...st, description } : st
     );
     setLocalSubTasks(updated);
-    onPhaseUpdate(phase.id, { subTasks: updated });
+    onPhaseUpdate(phase._id || phase.id, { subTasks: updated });
   };
 
   const handleAddSubtask = () => {
@@ -287,16 +361,19 @@ function PhaseCard({
     setNewSubTaskTitle('');
 
     if (phase.isComplete) {
-      onPhaseUpdate(phase.id, { subTasks: updated, isComplete: false });
+      onPhaseUpdate(phase._id || phase.id, {
+        subTasks: updated,
+        isComplete: false,
+      });
     } else {
-      onPhaseUpdate(phase.id, { subTasks: updated });
+      onPhaseUpdate(phase._id || phase.id, { subTasks: updated });
     }
   };
 
   const handleDeleteSubtask = (index) => {
     const updated = localSubTasks.filter((_, idx) => idx !== index);
     setLocalSubTasks(updated);
-    onPhaseUpdate(phase.id, { subTasks: updated });
+    onPhaseUpdate(phase._id || phase.id, { subTasks: updated });
   };
 
   const handleStartEdit = (index) => {
@@ -313,14 +390,14 @@ function PhaseCard({
         idx === editingIndex ? { ...st, title: editingTitle.trim() } : st
       );
       setLocalSubTasks(updated);
-      onPhaseUpdate(phase.id, { subTasks: updated });
+      onPhaseUpdate(phase._id || phase.id, { subTasks: updated });
     }
     setEditingIndex(null);
   };
 
   const handleToggleComplete = () => {
     if (!allSubtasksComplete && !phase.isComplete) return;
-    onPhaseUpdate(phase.id, { isComplete: !phase.isComplete });
+    onPhaseUpdate(phase._id || phase.id, { isComplete: !phase.isComplete });
   };
 
   const handleAISuggest = async () => {
@@ -345,7 +422,7 @@ function PhaseCard({
   const handleAddSuggestion = (suggestion) => {
     const updated = [...localSubTasks, { ...suggestion, description: '' }];
     setLocalSubTasks(updated);
-    onPhaseUpdate(phase.id, { subTasks: updated });
+    onPhaseUpdate(phase._id || phase.id, { subTasks: updated });
     setSuggestions((prev) => prev.filter((s) => s.title !== suggestion.title));
   };
 
@@ -355,8 +432,16 @@ function PhaseCard({
       ...suggestions.map((s) => ({ ...s, description: '' })),
     ];
     setLocalSubTasks(updated);
-    onPhaseUpdate(phase.id, { subTasks: updated });
+    onPhaseUpdate(phase._id || phase.id, { subTasks: updated });
     setSuggestions([]);
+  };
+
+  const handleDeletePhase = () => {
+    if (
+      window.confirm(`Delete phase "${phase.title}"? This cannot be undone.`)
+    ) {
+      onPhaseDelete(phase._id || phase.id);
+    }
   };
 
   return (
@@ -369,12 +454,12 @@ function PhaseCard({
           : 'border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600'
       }`}
     >
-      {/* Phase Header - Always Visible */}
-      <button
-        onClick={onToggle}
-        className='w-full p-4 flex items-center justify-between text-left'
-      >
-        <div className='flex items-center space-x-4'>
+      {/* Phase Header */}
+      <div className='p-4 flex items-center justify-between'>
+        <button
+          onClick={onToggle}
+          className='flex items-center space-x-4 flex-1 text-left'
+        >
           <div
             className={`w-10 h-10 rounded-full flex items-center justify-center font-medium ${
               phase.isComplete
@@ -409,19 +494,37 @@ function PhaseCard({
               )}
             </p>
           </div>
-        </div>
-        <HiOutlineChevronDown
-          className={`w-5 h-5 text-gray-400 transition-transform ${
-            isExpanded ? 'rotate-180' : ''
-          }`}
-        />
-      </button>
+        </button>
 
-      {/* Expanded Content - Inline */}
+        <div className='flex items-center space-x-1'>
+          <button
+            onClick={() => onPhaseEdit(phase)}
+            className='p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors'
+            title='Edit phase'
+          >
+            <HiOutlinePencil className='w-4 h-4' />
+          </button>
+          <button
+            onClick={handleDeletePhase}
+            className='p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors'
+            title='Delete phase'
+          >
+            <HiOutlineTrash className='w-4 h-4' />
+          </button>
+          <button onClick={onToggle} className='p-2'>
+            <HiOutlineChevronDown
+              className={`w-5 h-5 text-gray-400 transition-transform ${
+                isExpanded ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
+        </div>
+      </div>
+
+      {/* Expanded Content */}
       <AnimatePresence>
         {isExpanded && (
           <motion.div
-            ref={contentRef}
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
@@ -429,7 +532,6 @@ function PhaseCard({
             className='overflow-hidden'
           >
             <div className='border-t border-gray-100 dark:border-gray-700'>
-              {/* Phase Description */}
               {phase.description && (
                 <div className='px-6 py-3 bg-gray-50 dark:bg-gray-900/50'>
                   <p className='text-sm text-gray-600 dark:text-gray-400'>
@@ -438,7 +540,6 @@ function PhaseCard({
                 </div>
               )}
 
-              {/* Tasks Section */}
               <div className='p-6'>
                 {/* Task Progress Bar */}
                 {totalCount > 0 && (
@@ -544,7 +645,6 @@ function PhaseCard({
                             </span>
                           )}
 
-                          {/* Task Description/Notes */}
                           {subtask.description && (
                             <p className='text-xs text-gray-500 dark:text-gray-400 mt-1 italic'>
                               📝 {subtask.description}
@@ -552,13 +652,12 @@ function PhaseCard({
                           )}
                         </div>
 
-                        {/* Action Buttons */}
                         <div className='flex items-center space-x-1 flex-shrink-0'>
                           {!subtask.isComplete && (
                             <button
                               onClick={() => setHelpingTask(subtask)}
                               className='p-1.5 text-purple-500 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded'
-                              title='Get AI help'
+                              title='Get help'
                             >
                               <HiOutlineLightBulb className='w-4 h-4' />
                             </button>
@@ -611,6 +710,7 @@ function PhaseCard({
                     onClick={handleAISuggest}
                     disabled={isSuggesting}
                     className='px-3 py-2 bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-200 transition-colors flex items-center'
+                    title='Get AI suggestions'
                   >
                     {isSuggesting ? (
                       <div className='w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin' />
@@ -671,7 +771,7 @@ function PhaseCard({
         )}
       </AnimatePresence>
 
-      {/* Task AI Help Modal */}
+      {/* Modals */}
       <AnimatePresence>
         {helpingTask && (
           <TaskAIHelp
@@ -684,7 +784,6 @@ function PhaseCard({
         )}
       </AnimatePresence>
 
-      {/* Task Description Modal */}
       <AnimatePresence>
         {editingDescriptionIndex !== null && (
           <TaskDescriptionModal
@@ -709,6 +808,9 @@ function PhaseTracker({
   isUpdating,
 }) {
   const [expandedPhase, setExpandedPhase] = useState(null);
+  const [showPhaseModal, setShowPhaseModal] = useState(false);
+  const [editingPhase, setEditingPhase] = useState(null);
+  const [isAddingPhase, setIsAddingPhase] = useState(false);
 
   useEffect(() => {
     if (onPhaseSelect) {
@@ -720,7 +822,42 @@ function PhaseTracker({
     setExpandedPhase(expandedPhase === phaseId ? null : phaseId);
   };
 
-  // Calculate overall progress
+  const handleAddPhase = async (data) => {
+    setIsAddingPhase(true);
+    try {
+      await projectsAPI.addPhase(project._id, data);
+      // The parent component should refresh the project data
+      window.location.reload(); // Simple refresh - or implement proper state update
+    } catch (error) {
+      console.error('Failed to add phase:', error);
+      alert('Failed to add phase');
+    } finally {
+      setIsAddingPhase(false);
+    }
+  };
+
+  const handleEditPhase = async (data) => {
+    if (!editingPhase) return;
+    try {
+      await onPhaseUpdate(editingPhase._id || editingPhase.id, {
+        title: data.title,
+        description: data.description,
+      });
+    } catch (error) {
+      console.error('Failed to update phase:', error);
+    }
+  };
+
+  const handleDeletePhase = async (phaseId) => {
+    try {
+      await projectsAPI.deletePhase(project._id, phaseId);
+      window.location.reload(); // Simple refresh
+    } catch (error) {
+      console.error('Failed to delete phase:', error);
+      alert('Failed to delete phase');
+    }
+  };
+
   const completedPhases = phases.filter((p) => p.isComplete).length;
 
   return (
@@ -738,7 +875,7 @@ function PhaseTracker({
         <div className='flex items-center space-x-1'>
           {phases.map((phase) => (
             <div
-              key={phase.id}
+              key={phase._id || phase.id}
               className={`flex-1 h-2 rounded-full ${
                 phase.isComplete
                   ? 'bg-green-500'
@@ -749,20 +886,58 @@ function PhaseTracker({
         </div>
       </div>
 
-      {/* Phase Cards - All Inline */}
+      {/* Phase Cards */}
       <div className='space-y-3'>
         {phases.map((phase) => (
           <PhaseCard
-            key={phase.id}
+            key={phase._id || phase.id}
             project={project}
             phase={phase}
             onPhaseUpdate={onPhaseUpdate}
+            onPhaseDelete={handleDeletePhase}
+            onPhaseEdit={(p) => {
+              setEditingPhase(p);
+              setShowPhaseModal(true);
+            }}
             isUpdating={isUpdating}
-            isExpanded={expandedPhase === phase.id}
-            onToggle={() => handleToggle(phase.id)}
+            isExpanded={expandedPhase === (phase._id || phase.id)}
+            onToggle={() => handleToggle(phase._id || phase.id)}
           />
         ))}
       </div>
+
+      {/* Add Phase Button */}
+      <button
+        onClick={() => {
+          setEditingPhase(null);
+          setShowPhaseModal(true);
+        }}
+        disabled={isAddingPhase}
+        className='w-full py-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl text-gray-500 dark:text-gray-400 hover:border-blue-500 hover:text-blue-500 transition-colors flex items-center justify-center space-x-2'
+      >
+        {isAddingPhase ? (
+          <div className='w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin' />
+        ) : (
+          <>
+            <HiOutlinePlus className='w-5 h-5' />
+            <span>Add New Phase</span>
+          </>
+        )}
+      </button>
+
+      {/* Phase Modal */}
+      <AnimatePresence>
+        {showPhaseModal && (
+          <PhaseModal
+            phase={editingPhase}
+            onSave={editingPhase ? handleEditPhase : handleAddPhase}
+            onClose={() => {
+              setShowPhaseModal(false);
+              setEditingPhase(null);
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

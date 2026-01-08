@@ -3,7 +3,6 @@
 import axios from 'axios';
 
 const api = axios.create({
-  // Use environment variable for production, fallback to localhost for development
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
   headers: {
     'Content-Type': 'application/json',
@@ -47,22 +46,18 @@ export const authAPI = {
     const response = await api.get('/auth/me');
     return response.data;
   },
-
   verifyEmail: async (token) => {
     const response = await api.post(`/auth/verify-email/${token}`);
     return response.data;
   },
-
   resendVerification: async () => {
     const response = await api.post('/auth/resend-verification');
     return response.data;
   },
-
   forgotPassword: async (email) => {
     const response = await api.post('/auth/forgot-password', { email });
     return response.data;
   },
-
   resetPassword: async (token, password) => {
     const response = await api.post(`/auth/reset-password/${token}`, {
       password,
@@ -82,7 +77,6 @@ export const projectsAPI = {
     return response.data;
   },
   create: async (projectData) => {
-    // projectData can now include: { name, description, type, useAI, template }
     const response = await api.post('/projects', projectData);
     return response.data;
   },
@@ -101,6 +95,48 @@ export const projectsAPI = {
     );
     return response.data;
   },
+
+  // Phase management
+  addPhase: async (projectId, data) => {
+    const response = await api.post(`/projects/${projectId}/phases`, data);
+    return response.data;
+  },
+  deletePhase: async (projectId, phaseId) => {
+    const response = await api.delete(
+      `/projects/${projectId}/phases/${phaseId}`
+    );
+    return response.data;
+  },
+  reorderPhases: async (projectId, phaseIds) => {
+    const response = await api.put(`/projects/${projectId}/phases/reorder`, {
+      phaseIds,
+    });
+    return response.data;
+  },
+
+  // Task management
+  addTask: async (projectId, phaseId, data) => {
+    const response = await api.post(
+      `/projects/${projectId}/phases/${phaseId}/tasks`,
+      data
+    );
+    return response.data;
+  },
+  updateTask: async (projectId, phaseId, taskId, data) => {
+    const response = await api.put(
+      `/projects/${projectId}/phases/${phaseId}/tasks/${taskId}`,
+      data
+    );
+    return response.data;
+  },
+  deleteTask: async (projectId, phaseId, taskId) => {
+    const response = await api.delete(
+      `/projects/${projectId}/phases/${phaseId}/tasks/${taskId}`
+    );
+    return response.data;
+  },
+
+  // Collaborators
   addCollaborator: async (projectId, email, role) => {
     const response = await api.post(`/projects/${projectId}/collaborators`, {
       email,
@@ -118,6 +154,8 @@ export const projectsAPI = {
     const response = await api.post(`/projects/join/${code}`);
     return response.data;
   },
+
+  // Chat
   saveChatMessage: async (projectId, role, content) => {
     const response = await api.post(`/projects/${projectId}/chat`, {
       role,
@@ -140,7 +178,6 @@ export const aiAPI = {
     });
     return response.data;
   },
-
   chat: async (projectId, message, chatHistory, currentPhaseId = null) => {
     const response = await api.post('/ai/chat', {
       projectId,
@@ -150,8 +187,6 @@ export const aiAPI = {
     });
     return response.data;
   },
-
-  // NEW: Generate dynamic phases
   generatePhases: async (name, description, type, template = null) => {
     const response = await api.post('/ai/generate-phases', {
       name,
@@ -161,22 +196,16 @@ export const aiAPI = {
     });
     return response.data;
   },
-
-  // NEW: Generate Planning PRD
   generatePlanningPRD: async (projectId) => {
     const response = await api.post(`/ai/generate-planning-prd/${projectId}`);
     return response.data;
   },
-
-  // NEW: Generate Documentation PRD
   generateDocumentationPRD: async (projectId) => {
     const response = await api.post(
       `/ai/generate-documentation-prd/${projectId}`
     );
     return response.data;
   },
-
-  // NEW: Get saved PRDs
   getProjectPRDs: async (projectId) => {
     const response = await api.get(`/ai/prds/${projectId}`);
     return response.data;
@@ -207,44 +236,41 @@ export const notificationsAPI = {
   },
 };
 
-// Add to client/src/services/api.js
-
+// GITHUB API
 export const githubAPI = {
+  // OAuth
   getAuthUrl: async () => {
     const response = await api.get('/github/auth-url');
     return response.data;
   },
-
   handleCallback: async (code) => {
     const response = await api.post('/github/callback', { code });
     return response.data;
   },
-
   disconnect: async () => {
     const response = await api.delete('/github/disconnect');
     return response.data;
   },
-
   getStatus: async () => {
     const response = await api.get('/github/status');
     return response.data;
   },
 
+  // Repositories
   getRepos: async (page = 1) => {
     const response = await api.get(`/github/repos?page=${page}`);
     return response.data;
   },
-
   analyzeRepo: async (owner, repo) => {
     const response = await api.post('/github/analyze', { owner, repo });
     return response.data;
   },
 
+  // Project Integration
   importProject: async (data) => {
     const response = await api.post('/github/import', data);
     return response.data;
   },
-
   connectProject: async (projectId, owner, repo) => {
     const response = await api.post(`/github/connect/${projectId}`, {
       owner,
@@ -252,7 +278,10 @@ export const githubAPI = {
     });
     return response.data;
   },
-
+  disconnectRepo: async (projectId) => {
+    const response = await api.delete(`/github/disconnect/${projectId}`);
+    return response.data;
+  },
   createRepo: async (projectId, isPrivate) => {
     const response = await api.post(`/github/create-repo/${projectId}`, {
       isPrivate,
@@ -260,13 +289,55 @@ export const githubAPI = {
     return response.data;
   },
 
+  // Project Data
   getCommits: async (projectId) => {
     const response = await api.get(`/github/commits/${projectId}`);
     return response.data;
   },
-
   syncProject: async (projectId) => {
     const response = await api.post(`/github/sync/${projectId}`);
+    return response.data;
+  },
+
+  // File Browser
+  getFileTree: async (projectId) => {
+    const response = await api.get(`/github/files/${projectId}`);
+    return response.data;
+  },
+  getFileContent: async (projectId, path) => {
+    const response = await api.get(
+      `/github/file/${projectId}?path=${encodeURIComponent(path)}`
+    );
+    return response.data;
+  },
+  explainFile: async (projectId, path) => {
+    const response = await api.get(
+      `/github/explain/${projectId}?path=${encodeURIComponent(path)}`
+    );
+    return response.data;
+  },
+
+  // Additional Data
+  getBranches: async (projectId) => {
+    const response = await api.get(`/github/branches/${projectId}`);
+    return response.data;
+  },
+  getPullRequests: async (projectId) => {
+    const response = await api.get(`/github/pulls/${projectId}`);
+    return response.data;
+  },
+  getIssues: async (projectId) => {
+    const response = await api.get(`/github/issues/${projectId}`);
+    return response.data;
+  },
+  getContributors: async (projectId) => {
+    const response = await api.get(`/github/contributors/${projectId}`);
+    return response.data;
+  },
+
+  // Task Comparison
+  compareWithCode: async (projectId) => {
+    const response = await api.get(`/github/compare/${projectId}`);
     return response.data;
   },
 };

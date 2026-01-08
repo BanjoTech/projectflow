@@ -7,12 +7,27 @@ const {
   getGitHubUser,
   getUserRepos,
   getRepoDetails,
+  getFileContent,
+  getDirectoryContents,
+  getRepoTree,
+  getBranches,
+  getPullRequests,
+  getIssues,
+  getRecentCommits,
+  getContributors,
   createRepo,
   createOrUpdateFile,
   analyzeRepository,
-  getRecentCommits,
   detectProjectType,
+  compareTasksWithCode,
+  explainFile,
 } = require('../services/githubService');
+
+// Helper to get user's GitHub token
+async function getUserToken(userId) {
+  const user = await User.findById(userId).select('+github.accessToken');
+  return user?.github?.accessToken;
+}
 
 // @desc    Get GitHub OAuth URL
 // @route   GET /api/github/auth-url
@@ -23,10 +38,7 @@ const getAuthUrl = async (req, res) => {
     const redirectUri = process.env.GITHUB_CALLBACK_URL;
 
     if (!clientId || !redirectUri) {
-      console.error('Missing GitHub Environment Variables');
-      return res
-        .status(500)
-        .json({ message: 'Server misconfiguration: Missing GitHub creds' });
+      return res.status(500).json({ message: 'GitHub not configured' });
     }
 
     const scope = 'read:user user:email repo';
@@ -56,7 +68,6 @@ const handleCallback = async (req, res) => {
         .json({ message: 'Authorization code is required' });
     }
 
-    // Exchange code for access token
     const tokenResponse = await axios.post(
       'https://github.com/login/oauth/access_token',
       {
@@ -64,24 +75,19 @@ const handleCallback = async (req, res) => {
         client_secret: process.env.GITHUB_CLIENT_SECRET,
         code,
       },
-      {
-        headers: { Accept: 'application/json' },
-      }
+      { headers: { Accept: 'application/json' } }
     );
 
     const { access_token, error, error_description } = tokenResponse.data;
 
     if (error || !access_token) {
-      console.error('GitHub OAuth error:', error, error_description);
       return res
         .status(400)
         .json({ message: error_description || 'OAuth failed' });
     }
 
-    // Get GitHub user info
     const githubUser = await getGitHubUser(access_token);
 
-    // Update user with GitHub info
     await User.findByIdAndUpdate(req.user._id, {
       github: {
         id: githubUser.id.toString(),
@@ -123,24 +129,20 @@ const disconnectGitHub = async (req, res) => {
 // @access  Private
 const getStatus = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select(
-      '+github.accessToken'
-    );
+    const token = await getUserToken(req.user._id);
 
-    if (!user.github?.accessToken) {
+    if (!token) {
       return res.json({ connected: false });
     }
 
-    // Verify token validity by fetching user
     try {
-      const githubUser = await getGitHubUser(user.github.accessToken);
+      const githubUser = await getGitHubUser(token);
       res.json({
         connected: true,
         username: githubUser.login,
         avatarUrl: githubUser.avatar_url,
       });
     } catch {
-      // If token invalid, disconnect
       await User.findByIdAndUpdate(req.user._id, { $unset: { github: 1 } });
       res.json({ connected: false });
     }
@@ -154,15 +156,11 @@ const getStatus = async (req, res) => {
 // @access  Private
 const getRepos = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select(
-      '+github.accessToken'
-    );
-
-    if (!user.github?.accessToken) {
+    const token = await getUserToken(req.user._id);
+    if (!token)
       return res.status(400).json({ message: 'GitHub not connected' });
-    }
 
-    const repos = await getUserRepos(user.github.accessToken);
+    const repos = await getUserRepos(token);
 
     res.json(
       repos.map((r) => ({
@@ -174,6 +172,8 @@ const getRepos = async (req, res) => {
         url: r.html_url,
         updatedAt: r.updated_at,
         defaultBranch: r.default_branch,
+        language: r.language,
+        stars: r.stargazers_count,
       }))
     );
   } catch (error) {
@@ -188,19 +188,11 @@ const getRepos = async (req, res) => {
 const analyzeRepo = async (req, res) => {
   try {
     const { owner, repo } = req.body;
-    const user = await User.findById(req.user._id).select(
-      '+github.accessToken'
-    );
-
-    if (!user.github?.accessToken) {
+    const token = await getUserToken(req.user._id);
+    if (!token)
       return res.status(400).json({ message: 'GitHub not connected' });
-    }
 
-    const analysis = await analyzeRepository(
-      user.github.accessToken,
-      owner,
-      repo
-    );
+    const analysis = await analyzeRepository(token, owner, repo);
     const projectType = detectProjectType(analysis);
 
     res.json({ analysis, suggestedType: projectType });
@@ -216,30 +208,14 @@ const analyzeRepo = async (req, res) => {
 const importFromGitHub = async (req, res) => {
   try {
     const { owner, repo, name, description } = req.body;
-    const user = await User.findById(req.user._id).select(
-      '+github.accessToken'
-    );
-
-    if (!user.github?.accessToken) {
+    const token = await getUserToken(req.user._id);
+    if (!token)
       return res.status(400).json({ message: 'GitHub not connected' });
-    }
 
-    // Get repo details
-    const repoDetails = await getRepoDetails(
-      user.github.accessToken,
-      owner,
-      repo
-    );
-
-    // Analyze the repository
-    const analysis = await analyzeRepository(
-      user.github.accessToken,
-      owner,
-      repo
-    );
+    const repoDetails = await getRepoDetails(token, owner, repo);
+    const analysis = await analyzeRepository(token, owner, repo);
     const projectType = detectProjectType(analysis);
 
-    // Create the project
     const project = await Project.create({
       name: name || repoDetails.name,
       description: description || repoDetails.description || '',
@@ -259,7 +235,6 @@ const importFromGitHub = async (req, res) => {
       phases: [],
     });
 
-    // Populate and return
     const populatedProject = await Project.findById(project._id)
       .populate('user', 'name email')
       .populate('collaborators.user', 'name email');
@@ -279,47 +254,20 @@ const connectProjectToRepo = async (req, res) => {
     const { projectId } = req.params;
     const { owner, repo } = req.body;
 
-    const user = await User.findById(req.user._id).select(
-      '+github.accessToken'
-    );
-
-    if (!user.github?.accessToken) {
+    const token = await getUserToken(req.user._id);
+    if (!token)
       return res.status(400).json({ message: 'GitHub not connected' });
-    }
 
-    // Find the project
     const project = await Project.findById(projectId);
+    if (!project) return res.status(404).json({ message: 'Project not found' });
 
-    if (!project) {
-      return res.status(404).json({ message: 'Project not found' });
+    if (!project.canEdit(req.user._id)) {
+      return res.status(403).json({ message: 'Not authorized' });
     }
 
-    // Check ownership or collaborator access
-    if (project.user.toString() !== req.user._id.toString()) {
-      const isCollaborator = project.collaborators?.some(
-        (c) =>
-          c.user.toString() === req.user._id.toString() && c.role !== 'viewer'
-      );
-      if (!isCollaborator) {
-        return res.status(403).json({ message: 'Not authorized' });
-      }
-    }
+    const repoDetails = await getRepoDetails(token, owner, repo);
+    const analysis = await analyzeRepository(token, owner, repo);
 
-    // Get repo details
-    const repoDetails = await getRepoDetails(
-      user.github.accessToken,
-      owner,
-      repo
-    );
-
-    // Analyze the repository
-    const analysis = await analyzeRepository(
-      user.github.accessToken,
-      owner,
-      repo
-    );
-
-    // Update project with GitHub info
     project.github = {
       isConnected: true,
       repoId: repoDetails.id,
@@ -334,18 +282,45 @@ const connectProjectToRepo = async (req, res) => {
 
     await project.save();
 
-    // Return the updated project
     const updatedProject = await Project.findById(projectId)
       .populate('user', 'name email')
       .populate('collaborators.user', 'name email');
 
-    res.json({
-      message: 'Repository connected successfully',
-      project: updatedProject,
-    });
+    res.json({ message: 'Repository connected', project: updatedProject });
   } catch (error) {
     console.error('Connect project to repo error:', error);
     res.status(500).json({ message: 'Failed to connect repository' });
+  }
+};
+
+// @desc    Disconnect repository from project
+// @route   DELETE /api/github/disconnect/:projectId
+// @access  Private
+const disconnectProjectRepo = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+
+    const project = await Project.findById(projectId);
+    if (!project) return res.status(404).json({ message: 'Project not found' });
+
+    if (!project.canEdit(req.user._id)) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    project.github = {
+      isConnected: false,
+    };
+
+    await project.save();
+
+    const updatedProject = await Project.findById(projectId)
+      .populate('user', 'name email')
+      .populate('collaborators.user', 'name email');
+
+    res.json({ message: 'Repository disconnected', project: updatedProject });
+  } catch (error) {
+    console.error('Disconnect repo error:', error);
+    res.status(500).json({ message: 'Failed to disconnect repository' });
   }
 };
 
@@ -357,29 +332,19 @@ const createRepoFromProject = async (req, res) => {
     const { projectId } = req.params;
     const { isPrivate = true } = req.body;
 
-    const user = await User.findById(req.user._id).select(
-      '+github.accessToken'
-    );
-
-    if (!user.github?.accessToken) {
+    const token = await getUserToken(req.user._id);
+    if (!token)
       return res.status(400).json({ message: 'GitHub not connected' });
-    }
 
-    // Find the project
     const project = await Project.findById(projectId);
+    if (!project) return res.status(404).json({ message: 'Project not found' });
 
-    if (!project) {
-      return res.status(404).json({ message: 'Project not found' });
-    }
-
-    // Check ownership
     if (project.user.toString() !== req.user._id.toString()) {
       return res
         .status(403)
-        .json({ message: 'Only project owner can create repository' });
+        .json({ message: 'Only owner can create repository' });
     }
 
-    // Create repo name (sanitize project name)
     const repoName =
       project.name
         .toLowerCase()
@@ -388,32 +353,28 @@ const createRepoFromProject = async (req, res) => {
         .replace(/^-|-$/g, '')
         .substring(0, 100) || 'my-project';
 
-    // Create the repository
     const newRepo = await createRepo(
-      user.github.accessToken,
+      token,
       repoName,
       project.description || `Project: ${project.name}`,
       isPrivate
     );
 
-    // Create initial README with project info
     const readmeContent = generateReadmeContent(project);
 
     try {
       await createOrUpdateFile(
-        user.github.accessToken,
+        token,
         newRepo.owner.login,
         newRepo.name,
         'README.md',
         readmeContent,
         'Initial commit: Project setup from ProjectFlow'
       );
-    } catch (readmeError) {
-      console.log('README update note:', readmeError.message);
-      // Continue even if README fails - repo was still created
+    } catch (e) {
+      console.log('README note:', e.message);
     }
 
-    // Update project with GitHub info
     project.github = {
       isConnected: true,
       repoId: newRepo.id,
@@ -429,47 +390,52 @@ const createRepoFromProject = async (req, res) => {
           database: [],
           styling: [],
           testing: [],
+          devops: [],
           other: [],
         },
-        structure: {
-          hasClient: false,
-          hasServer: false,
-          hasSrc: false,
-          hasTests: false,
-          hasDocker: false,
-          hasCICD: false,
-          hasReadme: true,
-        },
+        structure: { hasReadme: true },
         files: { total: 1, byExtension: { md: 1 } },
         detectedFeatures: [],
         missingFeatures: [],
         suggestions: ['Start building your project!'],
+        codeQuality: {
+          score: 0,
+          grade: 'N/A',
+          details: {},
+          recommendations: [],
+        },
+        designPatterns: {
+          primary: 'unknown',
+          patterns: [],
+          description: 'Not enough code to analyze yet.',
+        },
+        architecture: {
+          style: 'unknown',
+          layers: [],
+          description: 'Architecture will be detected as code is added.',
+        },
       },
       lastSyncedAt: new Date(),
     };
 
     await project.save();
 
-    // Return the updated project
     const updatedProject = await Project.findById(projectId)
       .populate('user', 'name email')
       .populate('collaborators.user', 'name email');
 
     res.json({
-      message: 'Repository created successfully',
+      message: 'Repository created',
       project: updatedProject,
       repoUrl: newRepo.html_url,
     });
   } catch (error) {
     console.error('Create repo error:', error);
-
-    // Handle specific GitHub errors
     if (error.status === 422) {
-      return res.status(400).json({
-        message: 'Repository name already exists. Try renaming your project.',
-      });
+      return res
+        .status(400)
+        .json({ message: 'Repository name already exists' });
     }
-
     res.status(500).json({ message: 'Failed to create repository' });
   }
 };
@@ -480,36 +446,25 @@ const createRepoFromProject = async (req, res) => {
 const getProjectCommits = async (req, res) => {
   try {
     const { projectId } = req.params;
-
-    const user = await User.findById(req.user._id).select(
-      '+github.accessToken'
-    );
-
-    if (!user.github?.accessToken) {
+    const token = await getUserToken(req.user._id);
+    if (!token)
       return res.status(400).json({ message: 'GitHub not connected' });
-    }
 
     const project = await Project.findById(projectId);
-
-    if (!project) {
-      return res.status(404).json({ message: 'Project not found' });
-    }
-
-    if (!project.github?.isConnected) {
-      return res.json([]); // Return empty array if no repo connected
+    if (!project || !project.github?.isConnected) {
+      return res.json([]);
     }
 
     const commits = await getRecentCommits(
-      user.github.accessToken,
+      token,
       project.github.repoOwner,
       project.github.repoName,
-      10
+      15
     );
 
     res.json(commits);
   } catch (error) {
     console.error('Get commits error:', error);
-    // Return empty array instead of error for better UX
     res.json([]);
   }
 };
@@ -520,108 +475,358 @@ const getProjectCommits = async (req, res) => {
 const syncProject = async (req, res) => {
   try {
     const { projectId } = req.params;
-
-    const user = await User.findById(req.user._id).select(
-      '+github.accessToken'
-    );
-
-    if (!user.github?.accessToken) {
+    const token = await getUserToken(req.user._id);
+    if (!token)
       return res.status(400).json({ message: 'GitHub not connected' });
-    }
 
     const project = await Project.findById(projectId);
-
-    if (!project) {
-      return res.status(404).json({ message: 'Project not found' });
-    }
-
-    if (!project.github?.isConnected) {
+    if (!project || !project.github?.isConnected) {
       return res
         .status(400)
         .json({ message: 'Project not connected to GitHub' });
     }
 
-    // Re-analyze the repository
     const analysis = await analyzeRepository(
-      user.github.accessToken,
+      token,
       project.github.repoOwner,
       project.github.repoName
     );
 
-    // Update project with new analysis
     project.github.analysis = analysis;
     project.github.lastSyncedAt = new Date();
-
     await project.save();
 
-    // Return the updated project
     const updatedProject = await Project.findById(projectId)
       .populate('user', 'name email')
       .populate('collaborators.user', 'name email');
 
-    res.json({
-      message: 'Project synced successfully',
-      project: updatedProject,
-      analysis,
-    });
+    res.json({ message: 'Project synced', project: updatedProject, analysis });
   } catch (error) {
     console.error('Sync project error:', error);
     res.status(500).json({ message: 'Failed to sync project' });
   }
 };
 
-// Helper function to generate README content
+// @desc    Get file tree
+// @route   GET /api/github/files/:projectId
+// @access  Private
+const getFileTree = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const token = await getUserToken(req.user._id);
+    if (!token)
+      return res.status(400).json({ message: 'GitHub not connected' });
+
+    const project = await Project.findById(projectId);
+    if (!project || !project.github?.isConnected) {
+      return res.status(400).json({ message: 'No repository connected' });
+    }
+
+    const tree = await getRepoTree(
+      token,
+      project.github.repoOwner,
+      project.github.repoName,
+      project.github.branch
+    );
+
+    const fileTree = buildFileTree(tree);
+    res.json(fileTree);
+  } catch (error) {
+    console.error('Get file tree error:', error);
+    res.status(500).json({ message: 'Failed to get file tree' });
+  }
+};
+
+// @desc    Get file content
+// @route   GET /api/github/file/:projectId
+// @access  Private
+const getFile = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { path } = req.query;
+
+    if (!path) return res.status(400).json({ message: 'Path is required' });
+
+    const token = await getUserToken(req.user._id);
+    if (!token)
+      return res.status(400).json({ message: 'GitHub not connected' });
+
+    const project = await Project.findById(projectId);
+    if (!project || !project.github?.isConnected) {
+      return res.status(400).json({ message: 'No repository connected' });
+    }
+
+    const fileData = await getFileContent(
+      token,
+      project.github.repoOwner,
+      project.github.repoName,
+      path,
+      project.github.branch
+    );
+
+    if (!fileData) {
+      return res.status(404).json({ message: 'File not found' });
+    }
+
+    res.json(fileData);
+  } catch (error) {
+    console.error('Get file error:', error);
+    res.status(500).json({ message: 'Failed to get file' });
+  }
+};
+
+// @desc    Explain file content
+// @route   GET /api/github/explain/:projectId
+// @access  Private
+const explainFileContent = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { path } = req.query;
+
+    if (!path) return res.status(400).json({ message: 'Path is required' });
+
+    const token = await getUserToken(req.user._id);
+    if (!token)
+      return res.status(400).json({ message: 'GitHub not connected' });
+
+    const project = await Project.findById(projectId);
+    if (!project || !project.github?.isConnected) {
+      return res.status(400).json({ message: 'No repository connected' });
+    }
+
+    const explanation = await explainFile(
+      token,
+      project.github.repoOwner,
+      project.github.repoName,
+      path
+    );
+
+    res.json(explanation);
+  } catch (error) {
+    console.error('Explain file error:', error);
+    res.status(500).json({ message: 'Failed to explain file' });
+  }
+};
+
+// @desc    Get branches
+// @route   GET /api/github/branches/:projectId
+// @access  Private
+const getProjectBranches = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const token = await getUserToken(req.user._id);
+    if (!token)
+      return res.status(400).json({ message: 'GitHub not connected' });
+
+    const project = await Project.findById(projectId);
+    if (!project || !project.github?.isConnected) {
+      return res.json([]);
+    }
+
+    const branches = await getBranches(
+      token,
+      project.github.repoOwner,
+      project.github.repoName
+    );
+
+    res.json(branches);
+  } catch (error) {
+    console.error('Get branches error:', error);
+    res.json([]);
+  }
+};
+
+// @desc    Get pull requests
+// @route   GET /api/github/pulls/:projectId
+// @access  Private
+const getProjectPulls = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const token = await getUserToken(req.user._id);
+    if (!token)
+      return res.status(400).json({ message: 'GitHub not connected' });
+
+    const project = await Project.findById(projectId);
+    if (!project || !project.github?.isConnected) {
+      return res.json([]);
+    }
+
+    const pulls = await getPullRequests(
+      token,
+      project.github.repoOwner,
+      project.github.repoName
+    );
+
+    res.json(pulls);
+  } catch (error) {
+    console.error('Get PRs error:', error);
+    res.json([]);
+  }
+};
+
+// @desc    Get issues
+// @route   GET /api/github/issues/:projectId
+// @access  Private
+const getProjectIssues = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const token = await getUserToken(req.user._id);
+    if (!token)
+      return res.status(400).json({ message: 'GitHub not connected' });
+
+    const project = await Project.findById(projectId);
+    if (!project || !project.github?.isConnected) {
+      return res.json([]);
+    }
+
+    const issues = await getIssues(
+      token,
+      project.github.repoOwner,
+      project.github.repoName
+    );
+
+    res.json(issues);
+  } catch (error) {
+    console.error('Get issues error:', error);
+    res.json([]);
+  }
+};
+
+// @desc    Get contributors
+// @route   GET /api/github/contributors/:projectId
+// @access  Private
+const getProjectContributors = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const token = await getUserToken(req.user._id);
+    if (!token)
+      return res.status(400).json({ message: 'GitHub not connected' });
+
+    const project = await Project.findById(projectId);
+    if (!project || !project.github?.isConnected) {
+      return res.json([]);
+    }
+
+    const contributors = await getContributors(
+      token,
+      project.github.repoOwner,
+      project.github.repoName
+    );
+
+    res.json(contributors);
+  } catch (error) {
+    console.error('Get contributors error:', error);
+    res.json([]);
+  }
+};
+
+// @desc    Compare tasks with code
+// @route   GET /api/github/compare/:projectId
+// @access  Private
+const compareWithCode = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const token = await getUserToken(req.user._id);
+    if (!token)
+      return res.status(400).json({ message: 'GitHub not connected' });
+
+    const project = await Project.findById(projectId);
+    if (!project || !project.github?.isConnected) {
+      return res.status(400).json({ message: 'No repository connected' });
+    }
+
+    const comparison = await compareTasksWithCode(
+      token,
+      project.github.repoOwner,
+      project.github.repoName,
+      project.phases
+    );
+
+    // Cache the comparison
+    project.github.taskComparison = comparison;
+    project.github.taskComparisonUpdatedAt = new Date();
+    await project.save();
+
+    res.json(comparison);
+  } catch (error) {
+    console.error('Compare error:', error);
+    res.status(500).json({ message: 'Failed to compare' });
+  }
+};
+
+// Helper: Build file tree from flat array
+function buildFileTree(files) {
+  const root = { name: 'root', type: 'dir', children: [] };
+
+  files.forEach((file) => {
+    const parts = file.path.split('/');
+    let current = root;
+
+    parts.forEach((part, index) => {
+      const isLast = index === parts.length - 1;
+      let child = current.children.find((c) => c.name === part);
+
+      if (!child) {
+        child = {
+          name: part,
+          path: parts.slice(0, index + 1).join('/'),
+          type: isLast ? file.type : 'tree',
+          size: isLast ? file.size : undefined,
+          children: isLast && file.type === 'blob' ? undefined : [],
+        };
+        current.children.push(child);
+      }
+
+      if (!isLast) {
+        current = child;
+      }
+    });
+  });
+
+  // Sort: folders first, then files, alphabetically
+  const sortChildren = (node) => {
+    if (node.children) {
+      node.children.sort((a, b) => {
+        if (a.type === 'tree' && b.type !== 'tree') return -1;
+        if (a.type !== 'tree' && b.type === 'tree') return 1;
+        return a.name.localeCompare(b.name);
+      });
+      node.children.forEach(sortChildren);
+    }
+  };
+  sortChildren(root);
+
+  return root.children;
+}
+
+// Helper: Generate README content
 function generateReadmeContent(project) {
   const phases = project.phases || [];
 
   let content = `# ${project.name}\n\n`;
-
-  if (project.description) {
-    content += `${project.description}\n\n`;
-  }
+  if (project.description) content += `${project.description}\n\n`;
 
   content += `## Project Info\n\n`;
   content += `- **Type:** ${project.type}\n`;
-  content += `- **Created:** ${new Date(
-    project.createdAt
-  ).toLocaleDateString()}\n`;
   content += `- **Progress:** ${project.progress || 0}%\n`;
   content += `- **Managed with:** [ProjectFlow](https://projectflowww.netlify.app)\n\n`;
 
   if (phases.length > 0) {
     content += `## Development Phases\n\n`;
-    phases.forEach((phase, index) => {
+    phases.forEach((phase, i) => {
       const status = phase.isComplete ? '✅' : '⬜';
-      content += `### ${status} Phase ${index + 1}: ${phase.title}\n\n`;
-
-      if (phase.description) {
-        content += `${phase.description}\n\n`;
-      }
-
-      if (phase.subTasks && phase.subTasks.length > 0) {
-        content += `**Tasks:**\n`;
+      content += `### ${status} Phase ${i + 1}: ${phase.title}\n\n`;
+      if (phase.description) content += `${phase.description}\n\n`;
+      if (phase.subTasks?.length > 0) {
         phase.subTasks.forEach((task) => {
-          const taskStatus = task.isComplete ? '✅' : '⬜';
-          content += `- ${taskStatus} ${task.title}\n`;
+          content += `- ${task.isComplete ? '✅' : '⬜'} ${task.title}\n`;
         });
         content += '\n';
       }
     });
   }
 
-  content += `---\n\n`;
-  content += `## Getting Started\n\n`;
-  content += `\`\`\`bash\n`;
-  content += `# Clone the repository\n`;
-  content += `git clone <repo-url>\n\n`;
-  content += `# Install dependencies\n`;
-  content += `npm install\n\n`;
-  content += `# Start development\n`;
-  content += `npm run dev\n`;
-  content += `\`\`\`\n\n`;
-  content += `---\n\n`;
-  content += `*This project is tracked with [ProjectFlow](https://projectflowww.netlify.app) - AI-Powered Project Management*\n`;
-
+  content += `---\n*Tracked with [ProjectFlow](https://projectflowww.netlify.app)*\n`;
   return content;
 }
 
@@ -634,7 +839,16 @@ module.exports = {
   analyzeRepo,
   importFromGitHub,
   connectProjectToRepo,
+  disconnectProjectRepo,
   createRepoFromProject,
   getProjectCommits,
   syncProject,
+  getFileTree,
+  getFile,
+  explainFileContent,
+  getProjectBranches,
+  getProjectPulls,
+  getProjectIssues,
+  getProjectContributors,
+  compareWithCode,
 };
